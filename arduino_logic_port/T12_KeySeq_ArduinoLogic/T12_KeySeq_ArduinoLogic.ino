@@ -25,6 +25,7 @@ struct SequenceBlob;           // (not used: no save/load in this build)
 const int MPR_SDA = 0, MPR_SCL = 1;
 const uint8_t MPR_ADDR = 0x5A;
 const bool ENABLE_MPR121 = false; // latency isolation build
+const bool ENABLE_CV_OUTPUT = false; // isolate gate timing from PWM/CV path
 
 const int ENC_CLK = 11;
 const int ENC_DT  = 12;
@@ -1657,8 +1658,10 @@ void handle_CV(float noteIndex, bool doTrigger) {
   // T12 CV stages invert the PWM analogue level.  Calibrated 0..8 V is
   // represented by the same normalized code as the original DAC path.
   uint16_t pwm = uint16_t(constrain(code, 0, 4095));
-  analogWrite(PITCH_CV_PIN, 4095 - pwm);
-  analogWrite(AUX_CV_PIN, 4095 - pwm);
+  if (ENABLE_CV_OUTPUT) {
+    analogWrite(PITCH_CV_PIN, 4095 - pwm);
+    analogWrite(AUX_CV_PIN, 4095 - pwm);
+  }
 
   if (doTrigger) gateTrigger();
 }
