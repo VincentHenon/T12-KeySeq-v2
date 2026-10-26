@@ -580,12 +580,11 @@ void clockISR() {
 
   // period tracking as you already do…
 
-  // software clock division
+  // Software clock division. Start on the first edge, then divide by d.
+  // This avoids adding one complete input-clock period of startup latency.
   uint8_t d = g_clockDiv ? g_clockDiv : 1;
-  if (++edgeDivCount >= d) {
-    edgeDivCount = 0;
-    clockTicks++;          // only emit a tick every d edges
-  }
+  if (edgeDivCount == 0) clockTicks++;
+  edgeDivCount = (uint8_t)((edgeDivCount + 1) % d);
 }
 
 static inline bool clockActive() {
