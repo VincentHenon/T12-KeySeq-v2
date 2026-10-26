@@ -178,9 +178,12 @@ static void sendOledBufferShifted() {
   for (uint8_t page = 0; page < 8; ++page) {
     uint8_t *dst = buf + page * 128;
     const uint8_t *src = logical + page * 128;
-    dst[0] = src[126];
-    dst[1] = src[127];
-    memcpy(dst + 2, src, 126);
+    // U8g2's physical column order on this panel is shifted right by two:
+    // place logical columns 0 and 1 at the end of the transmitted row so
+    // they appear at the left edge of the glass.
+    memcpy(dst, src + 2, 126);
+    dst[126] = src[0];
+    dst[127] = src[1];
   }
   u8g2.sendBuffer();
   memcpy(buf, logical, sizeof(logical));
