@@ -24,6 +24,7 @@ struct SequenceBlob;           // (not used: no save/load in this build)
 /*** Pins *********************************************************************/
 const int MPR_SDA = 0, MPR_SCL = 1;
 const uint8_t MPR_ADDR = 0x5A;
+const bool ENABLE_MPR121 = false; // latency isolation build
 
 const int ENC_CLK = 11;
 const int ENC_DT  = 12;
@@ -566,7 +567,7 @@ void loop() {
   }
 
   updatePitchMods();
-  scanKeys();
+  if (ENABLE_MPR121) scanKeys();
   serviceOctaveButtons();
   serviceKeyOverlayTimeout();
   encoder.update();
