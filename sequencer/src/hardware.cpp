@@ -206,7 +206,8 @@ Input poll(uint64_t now) {
   gpio_put(pin::LedMinus, minus.stable);
   gpio_put(pin::LedPlus, plus.stable);
   if (mprConfigured && now >= nextTouch) {
-    nextTouch = now + (touchOk ? 5000 : 100000);
+      // Keep live recording responsive: the MPR121 is sampled every 1 ms.
+      nextTouch = now + (touchOk ? 1000 : 100000);
     uint8_t b[2]{};
     if (rd(0, b, 2)) {
       touchOk = true;

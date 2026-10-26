@@ -1,6 +1,6 @@
 # Doboz T12 — séquenceur C++ natif
 
-- **[UF2 MVP 0.1.3](T12_Sequencer_MVP_v0.1.3.uf2)**
+- **[UF2 MVP 0.1.4](T12_Sequencer_MVP_v0.1.4.uf2)**
 - [Mode d’emploi et compilation](sequencer/README.md)
 - [Code C++](sequencer/src/main.cpp)
 

@@ -1,5 +1,10 @@
 # Journal des versions T12 KeySeq
 
+## 0.1.4 — 2026-10-26
+
+- Polling MPR121 réduit de 5 ms à 1 ms pour rendre le déclenchement live pendant l’enregistrement plus immédiat.
+- UF2 : `T12_Sequencer_MVP_v0.1.4.uf2`.
+
 ## 0.1.3 — 2026-10-26
 
 - Correction du traitement Clock externe : un front ne peut plus traiter deux fois le demi-pas interpolé.

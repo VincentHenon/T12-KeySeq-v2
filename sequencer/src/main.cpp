@@ -23,13 +23,13 @@ int main() {
   static Ui ui(project, settings, engine);
   static Canvas canvas;
   canvas.text(0, 8, "T12 SEQUENCER");
-  canvas.text(0, 24, "MVP 0.1.3");
+  canvas.text(0, 24, "MVP 0.1.4");
   canvas.text(0, 40, "C++ PICO SDK");
   display::publish(canvas);
   sleep_ms(600);
   hw::clearEdges();
   uint64_t nextUi = 0, nextLeds = 0;
-  std::printf("T12 Sequencer 0.1.3 / native Pico SDK / storage %s\n",
+  std::printf("T12 Sequencer 0.1.4 / native Pico SDK / storage %s\n",
               storage::available() ? "ready" : "unavailable");
   while (true) {
     uint64_t now = time_us_64();
