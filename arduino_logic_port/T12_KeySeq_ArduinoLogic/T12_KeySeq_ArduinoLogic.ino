@@ -483,7 +483,9 @@ void setup() {
   Wire.beginTransmission(MPR_ADDR); Wire.write(0x2C); Wire.write(0x01); Wire.endTransmission();
   Wire.beginTransmission(MPR_ADDR); Wire.write(0x2D); Wire.write(0x00); Wire.endTransmission();
   Wire.beginTransmission(MPR_ADDR); Wire.write(0x2E); Wire.write(0x00); Wire.endTransmission();
-  Wire.beginTransmission(MPR_ADDR); Wire.write(0x5B); Wire.write(0x10); Wire.endTransmission();
+  // No additional MPR121 touch debounce: the first filtered touch sample
+  // is reported immediately. Release debounce remains disabled as well.
+  Wire.beginTransmission(MPR_ADDR); Wire.write(0x5B); Wire.write(0x00); Wire.endTransmission();
   // Keep the confirmed charge/current configuration, but use the minimum
   // electrode sample interval (ESI=1 ms) to reduce touch latency.
   Wire.beginTransmission(MPR_ADDR); Wire.write(0x5C); Wire.write(0x20); Wire.endTransmission();
