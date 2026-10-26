@@ -1,0 +1,36 @@
+/Users/vincenthenon/Desktop/T12_alternative_firmware/.arduino-cache/v08_build/core/lwip/src/apps/mdns/mdns_out.c.o: \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4/cores/rp2040/lwip/src/apps/mdns/mdns_out.c \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4/cores/rp2040/lwip/src/apps/mdns/../../../../../../pico-sdk/lib/lwip/src/apps/mdns/mdns_out.c \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/apps/mdns_out.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/apps/mdns_opts.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/opt.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/debug.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/arch.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/src/rp2_common/pico_lwip/include/arch/cc.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/apps/mdns_priv.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/apps/mdns.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/netif.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/err.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/ip_addr.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/def.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/ip4_addr.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/ip6_addr.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/def.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/pbuf.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/stats.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/mem.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/memp.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/priv/memp_std.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/priv/memp_priv.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/priv/mem_priv.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/timeouts.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/apps/mdns_domain.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/prot/dns.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/prot/iana.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/udp.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/ip.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/ip4.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/prot/ip4.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/ip6.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/prot/ip.h \
+ /Users/vincenthenon/Library/Arduino15/packages/rp2040/hardware/rp2040/5.4.4//pico-sdk/lib/lwip/src/include/lwip/prot/udp.h

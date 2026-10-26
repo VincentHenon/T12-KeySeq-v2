@@ -1,0 +1,11 @@
+.program rgb
+.side_set 1
+; 10 cycles/bit at 8 MHz: T0H=375 ns, T1H=750 ns, total=1.25 us.
+.wrap_target
+bitloop:
+    out x, 1       side 0 [3]
+    jmp !x do_zero side 1 [2]
+    jmp bitloop    side 1 [2]
+do_zero:
+    nop            side 0 [2]
+.wrap
