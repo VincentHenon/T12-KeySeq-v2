@@ -16,6 +16,7 @@ struct SequenceBlob;           // (not used: no save/load in this build)
 
 #include <Wire.h>
 #include <EEncoder.h>
+#include <Adafruit_NeoPixel.h>
 #include <U8g2lib.h>
 #include <math.h>
 #include <EEPROM.h>
@@ -32,6 +33,8 @@ const int ENC_SW  = 10;
 const uint CLOCK_PIN = 3;
 
 const int GATE_PIN = 7;
+const int RGB_PIN = 2;
+const uint8_t RGB_COUNT = 12;
 const int PITCH_CV_PIN = 4;
 const int AUX_CV_PIN = 5;
 
@@ -159,6 +162,7 @@ const uint32_t PREVIEW_MAX_US      = 500000; // clamp 500 ms
 
 /*** Peripherals **************************************************************/
 EEncoder encoder(ENC_CLK, ENC_DT, ENC_SW, 4); // rotation only
+Adafruit_NeoPixel pixels(RGB_COUNT, RGB_PIN, NEO_GRB + NEO_KHZ800);
 const bool REVERSE_ORDER = false;             // flip if keypad is mirrored
 
 // OLED on I2C0 (Wire)
@@ -221,7 +225,7 @@ const char *tableNoteName[12] = {"C","C#","D","D#","E","F","F#","G","G#","A","A#
 // ----- Runtime copies (used everywhere in the app) -----
 float   V0_meas       = 0.022f;  // post-amp voltage at DAC=0
 float   Vfs_meas      = 7.840f;   // post-amp voltage at DAC=4095
-uint8_t g_clockDiv    = 1;       // 1,2,4,8,16...
+uint8_t g_clockDiv    = 2;       // divide external Clock by two by default
 uint8_t g_ledBrightness = 255;   // 0..255
 
 // --- Calibration reference output control ---

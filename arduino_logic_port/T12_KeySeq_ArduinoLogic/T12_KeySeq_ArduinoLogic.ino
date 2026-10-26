@@ -30,6 +30,10 @@ const int ENC_DT  = 12;
 const int ENC_SW  = 10;
 
 const uint CLOCK_PIN = 3;
+const uint8_t OCT_DOWN_PIN = 27; // ADC1, active-low
+const uint8_t OCT_UP_PIN   = 28; // ADC2, active-low
+const uint8_t OCT_DOWN_LED = 22;
+const uint8_t OCT_UP_LED   = 21;
 
 const int GATE_PIN = 7;
 const int PITCH_CV_PIN = 4;
@@ -164,11 +168,36 @@ const bool REVERSE_ORDER = false;             // flip if keypad is mirrored
 // OLED on I2C0 (Wire)
 U8G2_SSD1306_128X64_NONAME_F_4W_HW_SPI u8g2(U8G2_R0, OLED_CS_PIN, OLED_DC_PIN, OLED_RST_PIN);
 
+// The T12 OLED has a two-column horizontal wrap: physical columns 126 and
+// 127 are the first two visible columns.  Keep the logical U8g2 framebuffer
+// unchanged and rotate only the copy sent to the display.
+static void sendOledBufferShifted() {
+  uint8_t *buf = u8g2.getBufferPtr();
+  uint8_t logical[1024];
+  memcpy(logical, buf, sizeof(logical));
+  for (uint8_t page = 0; page < 8; ++page) {
+    uint8_t *dst = buf + page * 128;
+    const uint8_t *src = logical + page * 128;
+    dst[0] = src[126];
+    dst[1] = src[127];
+    memcpy(dst + 2, src, 126);
+  }
+  u8g2.sendBuffer();
+  memcpy(buf, logical, sizeof(logical));
+}
+
 // UI throttle & dirty flag
 uint32_t lastUiMs = 0;
 const uint32_t UI_INTERVAL_MS = 50;    // ~20 FPS
 volatile bool uiDirty = true;
 inline void markUI() { uiDirty = true; }
+inline void transposeOctave(int delta);
+inline void editKeyTransposeOctave(int deltaOct);
+
+static bool octDownPrev = true, octUpPrev = true;
+static uint32_t lastOctButtonMs = 0;
+
+static void serviceOctaveButtons();
 
 // dynamic Y position for content after a header
 int16_t g_contentStartY = 12;
@@ -197,6 +226,22 @@ static int8_t    modalChoiceIndex = 0; // for 2-button modals (0=left,1=right)
 enum Mode { IDLE, EDITKEY, RECSEQ, EDITSEQ, SETTINGS };
 Mode currentMode = IDLE;
 
+static void serviceOctaveButtons() {
+  bool down = digitalRead(OCT_DOWN_PIN);
+  bool up   = digitalRead(OCT_UP_PIN);
+  if (millis() - lastOctButtonMs < 35) return;
+  if (octDownPrev && !down) {
+    if (currentMode == EDITKEY) editKeyTransposeOctave(-1); else transposeOctave(-1);
+    digitalWrite(OCT_DOWN_LED, HIGH); digitalWrite(OCT_UP_LED, LOW);
+    lastOctButtonMs = millis();
+  } else if (octUpPrev && !up) {
+    if (currentMode == EDITKEY) editKeyTransposeOctave(+1); else transposeOctave(+1);
+    digitalWrite(OCT_UP_LED, HIGH); digitalWrite(OCT_DOWN_LED, LOW);
+    lastOctButtonMs = millis();
+  }
+  octDownPrev = down; octUpPrev = up;
+}
+
 /*** Clock (simple) ***********************************************************/
 volatile uint32_t clockTicks = 0;      // incremented in ISR
 uint8_t playhead = 0;                  // 0..seqLen-1
@@ -221,7 +266,7 @@ const char *tableNoteName[12] = {"C","C#","D","D#","E","F","F#","G","G#","A","A#
 // ----- Runtime copies (used everywhere in the app) -----
 float   V0_meas       = 0.022f;  // post-amp voltage at DAC=0
 float   Vfs_meas      = 7.840f;   // post-amp voltage at DAC=4095
-uint8_t g_clockDiv    = 1;       // 1,2,4,8,16...
+  uint8_t g_clockDiv    = 2;       // 2 incoming clocks per step by default
 uint8_t g_ledBrightness = 255;   // 0..255
 
 // --- Calibration reference output control ---
@@ -235,9 +280,9 @@ uint8_t calibPos   = 0;      // digit place: 0=1V, 1=0.1V, 2=0.01V, 3=0.001V
 
 
 /*** Keypad debounce **********************************************************/
-const uint32_t PRESS_MS   = 12;
-const uint32_t RELEASE_MS = 60;
-const uint32_t LOCK_MS    = 80;
+const uint32_t PRESS_MS   = 4;
+const uint32_t RELEASE_MS = 20;
+const uint32_t LOCK_MS    = 30;
 
 uint8_t  stableKey        = 0;
 uint8_t  pressCand        = 0;
@@ -401,6 +446,8 @@ void drawModesMenu();
 void drawEditSeqScreen();
 void drawEditKeyScreen();
 void drawRecSeqScreen();
+inline void transposeOctave(int delta);
+inline void editKeyTransposeOctave(int deltaOct);
 static inline void serviceKeyOverlayTimeout();
 void scanBus(TwoWire &bus, const char* name);
 static inline void drawRightAligned(int y, const char* s, int rightMargin = 2);
@@ -422,6 +469,7 @@ void setup() {
   Wire.setSCL(MPR_SCL);
   Wire.setSDA(MPR_SDA);
   Wire.begin();
+  Wire.setClock(400000);
   // MPR121 baseline/filters: 12 electrodes enabled.
   Wire.beginTransmission(MPR_ADDR); Wire.write(0x5E); Wire.write(0x00); Wire.endTransmission();
   Wire.beginTransmission(MPR_ADDR); Wire.write(0x2B); Wire.write(0x01); Wire.endTransmission();
@@ -444,6 +492,12 @@ void setup() {
   encoder.setEncoderHandler(onEncoderTurn);
   encoder.setAcceleration(false);
   pinMode(ENC_SW, INPUT_PULLUP);
+  pinMode(OCT_DOWN_PIN, INPUT_PULLUP);
+  pinMode(OCT_UP_PIN, INPUT_PULLUP);
+  pinMode(OCT_DOWN_LED, OUTPUT);
+  pinMode(OCT_UP_LED, OUTPUT);
+  digitalWrite(OCT_DOWN_LED, LOW);
+  digitalWrite(OCT_UP_LED, LOW);
 
   // Gate/trigger pin
   pinMode(GATE_PIN, OUTPUT);
@@ -492,6 +546,7 @@ void loop() {
 
   updatePitchMods();
   scanKeys();
+  serviceOctaveButtons();
   serviceKeyOverlayTimeout();
   encoder.update();
   checkEncoderClick();
@@ -2238,7 +2293,7 @@ static void drawKeyNoteOverlay() {
   u8g2.drawUTF8(2,  ySide, prv);
   drawRightAligned(ySide, nxt, 2);
 
-  u8g2.sendBuffer();
+  sendOledBufferShifted();
 }
 
 void drawEditKeyScreen() {
@@ -2248,7 +2303,7 @@ void drawEditKeyScreen() {
   }
   u8g2.clearBuffer();
   drawKeyEditGrid();
-  u8g2.sendBuffer();
+  sendOledBufferShifted();
 }
 
 void drawRecSeqScreen() {
@@ -2329,7 +2384,7 @@ void drawRecSeqScreen() {
 
   // Draw any modal message on top
   drawModalIfAny();
-  u8g2.sendBuffer();
+  sendOledBufferShifted();
 }
 
 static inline void serviceKeyOverlayTimeout() {
@@ -2372,7 +2427,7 @@ static void drawNameEditor() {
   u8g2.setFont(u8g2_font_5x8_tf);
   u8g2.drawUTF8(10, 62, "Turn: change  Click: next  Long: save  Dbl: cancel");
 
-  u8g2.sendBuffer();
+  sendOledBufferShifted();
 }
 
 void drawSaveLoadSlots() {
@@ -2479,7 +2534,7 @@ void drawScreen() {
       u8g2.drawUTF8(40, 10, "SETTINGS");
     }
     drawModalIfAny();
-    u8g2.sendBuffer();
+    sendOledBufferShifted();
     return;
   }
 
@@ -2496,7 +2551,7 @@ void drawScreen() {
     u8g2.setFont(u8g2_font_6x10_tf);
     u8g2.drawUTF8(34, 10, "SEQ PARAMETERS");
     drawModalIfAny();
-    u8g2.sendBuffer();
+    sendOledBufferShifted();
     return;
   }
 
@@ -2506,7 +2561,7 @@ void drawScreen() {
     u8g2.setFont(u8g2_font_6x10_tf);
     u8g2.drawUTF8(52, 10, "MODE");
     drawModalIfAny();
-    u8g2.sendBuffer();
+    sendOledBufferShifted();
     return;
   }
 
@@ -2514,7 +2569,7 @@ void drawScreen() {
   if (currentMode == RECSEQ) { drawRecSeqScreen(); return; } 
 
   // --- SEQ EDIT : dedicated view ---
-  if (currentMode == EDITSEQ) { drawEditSeqScreen(); u8g2.sendBuffer(); return; }
+  if (currentMode == EDITSEQ) { drawEditSeqScreen(); sendOledBufferShifted(); return; }
 
   // --- EDIT KEY screen
   if (currentMode == EDITKEY) { drawEditKeyScreen(); return; }
@@ -2618,7 +2673,7 @@ void drawScreen() {
   }
 
   drawModalIfAny();
-  u8g2.sendBuffer();
+  sendOledBufferShifted();
 
 
 }
@@ -2919,7 +2974,7 @@ static void applyGlobals(const GlobalSettings &g) {
 static void setDefaultGlobals() {
   V0_meas         = 0.001f;
   Vfs_meas        = 8.10f;
-  g_clockDiv      = 1;
+  g_clockDiv      = 2;
   g_ledBrightness = 255;
 }
 
