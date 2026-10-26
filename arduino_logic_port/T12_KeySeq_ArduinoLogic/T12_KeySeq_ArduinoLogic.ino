@@ -270,7 +270,7 @@ const char *tableNoteName[12] = {"C","C#","D","D#","E","F","F#","G","G#","A","A#
 // ----- Runtime copies (used everywhere in the app) -----
 float   V0_meas       = 0.022f;  // post-amp voltage at DAC=0
 float   Vfs_meas      = 7.840f;   // post-amp voltage at DAC=4095
-  uint8_t g_clockDiv    = 2;       // 2 incoming clocks per step by default
+uint8_t g_clockDiv    = 1;       // process every incoming clock edge
 uint8_t g_ledBrightness = 255;   // 0..255
 
 // --- Calibration reference output control ---
@@ -546,8 +546,10 @@ void setup() {
 
 /*** loop (core 0) ************************************************************/
 void loop() {
-  processGatePulse();
+  // Handle the clock before all background work so the CV/gate event starts
+  // as close as possible to the incoming edge.
   handleClock();
+  processGatePulse();
 
   // Service scheduled half-step if due (for TIME=-1)
   if (subStepActive && (int32_t)(micros() - subStepDueUs) >= 0) {
@@ -1457,6 +1459,11 @@ void onPress(uint8_t k) {
         overrideKey    = k;
         vibEnabledNow  = false;
         glideActiveNow = false;
+        // Give immediate tactile feedback even while the transport is
+        // clocked. The override remains active for the next clocked step.
+        currentNoteBase = (float)base;
+        handle_CV((float)base, /*doTrigger=*/false);
+        previewGate();
       } else {
         currentNoteBase = (float)base;
         vibPhase        = 0.0f;
