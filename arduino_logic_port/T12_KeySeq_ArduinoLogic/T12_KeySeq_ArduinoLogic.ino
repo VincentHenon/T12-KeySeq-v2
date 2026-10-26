@@ -281,8 +281,8 @@ uint8_t calibPos   = 0;      // digit place: 0=1V, 1=0.1V, 2=0.01V, 3=0.001V
 
 /*** Keypad debounce **********************************************************/
 const uint32_t PRESS_MS   = 4;
-const uint32_t RELEASE_MS = 20;
-const uint32_t LOCK_MS    = 30;
+const uint32_t RELEASE_MS = 8;
+const uint32_t LOCK_MS    = 5;
 
 uint8_t  stableKey        = 0;
 uint8_t  pressCand        = 0;
