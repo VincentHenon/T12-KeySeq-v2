@@ -180,9 +180,10 @@ void init(const Settings &s) {
   pio_sm_set_consecutive_pindirs(pio0, rgbSm, pin::Rgb, 1, true);
   pio_sm_init(pio0, rgbSm, offset, &pc);
   pio_sm_set_enabled(pio0, rgbSm, true);
-  // The T12 Clock conditioning presents the useful Pamela clock transition
-  // as a rising edge at GP3. Reset remains an active-low, falling-edge input.
-  gpio_set_irq_enabled_with_callback(pin::Clock, GPIO_IRQ_EDGE_RISE, true, irq);
+  // The T12 Clock input is active-low after its conditioning stage. Use the
+  // falling edge, matching the Pamela trigger convention. Reset is also
+  // active-low and uses a falling edge.
+  gpio_set_irq_enabled_with_callback(pin::Clock, GPIO_IRQ_EDGE_FALL, true, irq);
   gpio_set_irq_enabled(pin::Reset, GPIO_IRQ_EDGE_FALL, true);
   for (unsigned p : {pin::EncoderA, pin::EncoderB})
     gpio_set_irq_enabled(p, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);

@@ -1,8 +1,8 @@
-# T12 Sequencer — MVP 0.1.1
+# T12 Sequencer — MVP 0.1.2
 
 Firmware en **C++20 natif, Raspberry Pi Pico SDK 2.2.0**, pour le Doboz T12 DIY v20 / RP2040. Aucune dépendance au framework Arduino. Les protocoles du diagnostic matériel validé sont repris : OLED SPI avec correction des deux colonnes, MPR121, LED GRB 800 kHz, boutons, encodeur, jacks et PWM CV inversé. Les touches et LED suivent la même grille : Key 1 en haut à gauche, Key 4 en haut à droite, Key 9 en bas à gauche et Key 12 en bas à droite.
 
-**UF2 : [T12_Sequencer_MVP_v0.1.1.uf2](../T12_Sequencer_MVP_v0.1.1.uf2).** Au démarrage l’écran affiche `T12 SEQUENCER / MVP 0.1.1 / C++ PICO SDK`, puis `STOP`.
+**UF2 : [T12_Sequencer_MVP_v0.1.2.uf2](../T12_Sequencer_MVP_v0.1.2.uf2).** Au démarrage l’écran affiche `T12 SEQUENCER / MVP 0.1.2 / C++ PICO SDK`, puis `STOP`.
 
 Le binaire est compilé et les tests logiciels passent. Le fonctionnement de cette nouvelle application complète reste à confirmer sur le module. La calibration précise 1 V/oct reste celle à affiner à partir du diagnostic v24.
 
@@ -72,7 +72,7 @@ Pour éditer `USER 2`, par exemple, sélectionner d’abord `USER 2` dans la lis
 - `TAP TEMPO` : cliquer plusieurs fois sur cette ligne pour fixer le tempo interne. Il ne remplace pas une horloge externe active en mode Auto.
 - Reset réarme le premier pas et coupe le Gate. En externe, le premier pas joue au prochain front Clock ; en interne, au prochain passage du moteur.
 
-Clock GP3 utilise son pull-up interne et le **front montant** : cela aligne le début du pas sur le début du trig Clock. Reset GP6 reste une entrée active basse sur front descendant. Les événements sont capturés en interruption. Les demi-pas sont interpolés entre les fronts : leur précision dépend de la dernière période mesurée, particulièrement à la première impulsion et lors d’un changement brusque de tempo.
+Clock GP3 utilise son pull-up interne et le **front descendant** : l’entrée conditionnée est active basse, comme le trig Pamela. Reset GP6 reste une entrée active basse sur front descendant. Les événements sont capturés en interruption. Les demi-pas sont interpolés entre les fronts : leur précision dépend de la dernière période mesurée, particulièrement à la première impulsion et lors d’un changement brusque de tempo.
 
 La page `CLOCK` affiche aussi `CLOCK IN` et `RESET IN` : le compteur augmente à chaque front reçu et l’état `HIGH`/`LOW` montre le niveau électrique actuel du RP2040. Sur cette révision, le front utile de Clock est montant ; Reset est inversé par le conditionnement et déclenche sur sa descente.
 

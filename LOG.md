@@ -1,5 +1,10 @@
 # Journal des versions T12 KeySeq
 
+## 0.1.2 — 2026-10-26
+
+- Clock GP3 inversée sur front descendant, avec pull-up interne, pour correspondre au trig actif-bas du Pamela Workout.
+- UF2 : `T12_Sequencer_MVP_v0.1.2.uf2`.
+
 ## 0.1.1 — 2026-10-26
 
 - Suppression du délai artificiel entre la préparation du CV et le Gate.
