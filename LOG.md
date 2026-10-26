@@ -1,5 +1,11 @@
 # Journal des versions T12 KeySeq
 
+## 0.1.3 — 2026-10-26
+
+- Correction du traitement Clock externe : un front ne peut plus traiter deux fois le demi-pas interpolé.
+- Cette correction évite un double déclenchement lors de la lecture synchronisée par Clock In.
+- UF2 : `T12_Sequencer_MVP_v0.1.3.uf2`.
+
 ## 0.1.2 — 2026-10-26
 
 - Clock GP3 inversée sur front descendant, avec pull-up interne, pour correspondre au trig actif-bas du Pamela Workout.

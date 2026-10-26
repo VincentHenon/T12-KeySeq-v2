@@ -98,12 +98,8 @@ void Engine::clockEdge(uint64_t now) {
   if (s_.clock == ClockMode::Internal || !running_)
     return;
   if (division_ == 0) {
-    // Complete the preceding half-clock even if the new external edge
-    // arrives earlier than the estimated half-period (tempo change).
-    if (halfDue_) {
-      halfTick(std::min(now, halfDue_));
-      halfDue_ = 0;
-    }
+    // tick() owns halfDue_: it completes at most one interpolated half-step
+    // before processing this external clock. Do not process it here as well.
     period_ = rawPeriod_ * s_.division;
     tick(now);
   }

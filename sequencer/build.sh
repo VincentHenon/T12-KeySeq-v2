@@ -7,4 +7,4 @@ args=(-S "$project_root/sequencer" -B "$project_root/build/sequencer-native" "-D
 if [[ -d "$toolchain_path" ]]; then args+=("-DPICO_TOOLCHAIN_PATH=$toolchain_path"); fi
 cmake "${args[@]}"
 cmake --build "$project_root/build/sequencer-native" --parallel 6
-cp "$project_root/build/sequencer-native/t12_sequencer.uf2" "$project_root/T12_Sequencer_MVP_v0.1.2.uf2"
+cp "$project_root/build/sequencer-native/t12_sequencer.uf2" "$project_root/T12_Sequencer_MVP_v0.1.3.uf2"
