@@ -503,9 +503,8 @@ void setup() {
 
   // Clock input
   pinMode(CLOCK_PIN, INPUT_PULLUP);
-  // Clock input polarity: trigger on the rising edge (inverted from the
-  // previous active-low interpretation).
-  attachInterrupt(digitalPinToInterrupt(CLOCK_PIN), clockISR, RISING);
+  // Pamela-style active-low clock: trigger at the start of the pulse.
+  attachInterrupt(digitalPinToInterrupt(CLOCK_PIN), clockISR, FALLING);
 
   // Encoder (rotation only)
   encoder.setEncoderHandler(onEncoderTurn);
