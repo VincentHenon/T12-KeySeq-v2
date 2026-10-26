@@ -22,4 +22,12 @@ Le MCP4725 du sketch original n’est pas utilisé ici : les sorties CV sont gé
 
 ## État
 
-Le sketch copié est volontairement conservé sans modification pour préserver exactement son ordre des événements. Le portage compilable nécessite encore le remplacement des appels Arduino (`digitalWrite`, `millis`, `EEPROM`, `U8g2`, `EEncoder`, `Wire`) par l’adaptateur Pico SDK. Le firmware natif situé dans `sequencer/` n’est pas modifié par ce travail.
+Le port Arduino est compilé avec le core `rp2040:rp2040` pour Raspberry Pi Pico. Le sketch conserve l’ordre du code original : calcul CV, écriture de la sortie CV, puis déclenchement Gate. Le firmware natif situé dans `sequencer/` n’est pas modifié par ce travail.
+
+Compilation :
+
+```text
+arduino-cli compile --fqbn rp2040:rp2040:rpipico T12_KeySeq_ArduinoLogic
+Sketch uses 120720 bytes (5%)
+Global variables use 13680 bytes (5%)
+```

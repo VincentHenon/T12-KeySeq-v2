@@ -15,7 +15,6 @@ struct GlobalSettings;         // (not used: no save/load in this build)
 struct SequenceBlob;           // (not used: no save/load in this build)
 
 #include <Wire.h>
-#include <Adafruit_MCP4725.h>
 #include <EEncoder.h>
 #include <U8g2lib.h>
 #include <math.h>
@@ -23,24 +22,21 @@ struct SequenceBlob;           // (not used: no save/load in this build)
 #include <string.h>
 
 /*** Pins *********************************************************************/
-const int KP_SCL = 17;                // TTP229 SCL (clock)
-const int KP_SDO = 16;                // TTP229 SDO (data)
+const int MPR_SDA = 0, MPR_SCL = 1;
+const uint8_t MPR_ADDR = 0x5A;
 
-const int ENC_CLK = 6;
-const int ENC_DT  = 7;
-const int ENC_SW  = 8;                // encoder pushbutton (read manually)
+const int ENC_CLK = 11;
+const int ENC_DT  = 12;
+const int ENC_SW  = 10;
 
-const uint CLOCK_PIN = 2;
+const uint CLOCK_PIN = 3;
 
-const int GATE_PIN = 18;              // gate/trigger output
+const int GATE_PIN = 7;
+const int PITCH_CV_PIN = 4;
+const int AUX_CV_PIN = 5;
 
-// I2C1 (Wire1) for DAC 
-const int DAC_SDA_PIN = 14;
-const int DAC_SCL_PIN = 15;
-
-// I2C0 (Wire) for OLED 
-const int OLED_SDA_PIN = 4;
-const int OLED_SCL_PIN = 5;
+const int OLED_CS_PIN = 17, OLED_DC_PIN = 16;
+const int OLED_SCK_PIN = 18, OLED_MOSI_PIN = 19, OLED_RST_PIN = 20;
 
 // ---------- Save/Load layout ----------
 #define NUM_SLOTS      8
@@ -162,12 +158,11 @@ const uint32_t PREVIEW_MIN_US      = 10000;  // clamp 10 ms
 const uint32_t PREVIEW_MAX_US      = 500000; // clamp 500 ms
 
 /*** Peripherals **************************************************************/
-Adafruit_MCP4725 dac;
 EEncoder encoder(ENC_CLK, ENC_DT, ENC_SW, 4); // rotation only
 const bool REVERSE_ORDER = false;             // flip if keypad is mirrored
 
 // OLED on I2C0 (Wire)
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+U8G2_SSD1306_128X64_NONAME_F_4W_HW_SPI u8g2(U8G2_R0, OLED_CS_PIN, OLED_DC_PIN, OLED_RST_PIN);
 
 // UI throttle & dirty flag
 uint32_t lastUiMs = 0;
@@ -423,32 +418,27 @@ static bool  saveSlotWithName(uint8_t slotIdx0, const char* nm);
 
 /*** Setup (core 0) ***********************************************************/
 void setup() {
-  // I2C0 for OLED (Wire)
-  Wire.setSCL(OLED_SCL_PIN);
-  Wire.setSDA(OLED_SDA_PIN);
+  // I2C0 for the MPR121 touch controller.
+  Wire.setSCL(MPR_SCL);
+  Wire.setSDA(MPR_SDA);
   Wire.begin();
+  // MPR121 baseline/filters: 12 electrodes enabled.
+  Wire.beginTransmission(MPR_ADDR); Wire.write(0x5E); Wire.write(0x00); Wire.endTransmission();
+  Wire.beginTransmission(MPR_ADDR); Wire.write(0x2B); Wire.write(0x01); Wire.endTransmission();
+  Wire.beginTransmission(MPR_ADDR); Wire.write(0x2C); Wire.write(0x01); Wire.endTransmission();
+  Wire.beginTransmission(MPR_ADDR); Wire.write(0x2D); Wire.write(0x00); Wire.endTransmission();
+  Wire.beginTransmission(MPR_ADDR); Wire.write(0x2E); Wire.write(0x00); Wire.endTransmission();
+  Wire.beginTransmission(MPR_ADDR); Wire.write(0x5B); Wire.write(0x10); Wire.endTransmission();
+  Wire.beginTransmission(MPR_ADDR); Wire.write(0x5C); Wire.write(0x20); Wire.endTransmission();
+  Wire.beginTransmission(MPR_ADDR); Wire.write(0x5D); Wire.write(0x04); Wire.endTransmission();
+  Wire.beginTransmission(MPR_ADDR); Wire.write(0x5E); Wire.write(0x0C); Wire.endTransmission();
 
-  // I2C1 for DAC (Wire1)
-  Wire1.setSDA(DAC_SDA_PIN);
-  Wire1.setSCL(DAC_SCL_PIN);
-  Wire1.begin();
-
-  // DAC is on I2C1
-  dac.begin(0x60, &Wire1);
-
-  // Optional: scan both buses
-  scanBus(Wire,  "I2C0 (OLED)");
-  scanBus(Wire1, "I2C1 (DAC)");
+  analogWriteRange(4095);
+  analogWriteFreq(48828);
 
   // Clock input
   pinMode(CLOCK_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(CLOCK_PIN), clockISR, FALLING);
-
-  // Keypad pins
-  pinMode(KP_SDO, INPUT_PULLUP);
-  pinMode(KP_SCL, OUTPUT);
-  digitalWrite(KP_SCL, LOW);
-  delayMicroseconds(2500);  // TTP229 sync
 
   // Encoder (rotation only)
   encoder.setEncoderHandler(onEncoderTurn);
@@ -468,7 +458,6 @@ void setup() {
   }
   applyGlobalsToHardware();*/
 
-  // Initialize DAC
   handle_CV(0.0f, false);
 
   lastTouchedKey = 1;
@@ -510,8 +499,6 @@ void loop() {
 
 /*** Core 1: OLED renderer ****************************************************/
 void setup1() {
-  u8g2.setI2CAddress(0x3C << 1);
-  u8g2.setBusClock(400000);
   u8g2.begin();
   u8g2.enableUTF8Print();
   lastUiMs = 0;
@@ -762,20 +749,18 @@ void playOneStep(uint8_t i, uint32_t gatePeriodUs, uint32_t glideBasePeriodUs, c
   gateStartHalfPeriod(gatePeriodUs);
 }
 
-/*** TTP229 raw read **********************************************************/
+/*** MPR121 raw read **********************************************************/
 uint8_t Read_Keypad() {
-  uint8_t key = 0;
-  for (uint8_t i = 1; i <= 16; i++) {
-    digitalWrite(KP_SCL, HIGH);
-    delayMicroseconds(3);
-    digitalWrite(KP_SCL, LOW);
-    delayMicroseconds(3);
-    int bit = digitalRead(KP_SDO);     // active LOW
-    if (bit == LOW && key == 0) {
-      key = REVERSE_ORDER ? (uint8_t)(17 - i) : i;
-    }
-  }
-  return key;
+  Wire.beginTransmission(MPR_ADDR);
+  Wire.write(0x00);
+  if (Wire.endTransmission(false) != 0) return 0;
+  if (Wire.requestFrom(MPR_ADDR, (uint8_t)2) != 2) return 0;
+  uint16_t raw = uint16_t(Wire.read()) | (uint16_t(Wire.read()) << 8);
+  // Physical T12 pad order: key 1 is electrode 10, then 6,5,0,...
+  static const uint8_t electrode[12] = {10,6,5,0,9,7,4,2,11,8,3,1};
+  for (uint8_t k = 0; k < 12; ++k)
+    if (raw & (uint16_t(1) << electrode[k])) return uint8_t(k + 1);
+  return 0;
 }
 
 /*** Keypad scanner (with no-retrigger lock) **********************************/
@@ -1574,7 +1559,11 @@ void handle_CV(float noteIndex, bool doTrigger) {
     norm = constrain(norm, 0.0f, 1.0f);
     code = (int)round(norm * 4095.0f);
   }
-  dac.setVoltage(code, false);
+  // T12 CV stages invert the PWM analogue level.  Calibrated 0..8 V is
+  // represented by the same normalized code as the original DAC path.
+  uint16_t pwm = uint16_t(constrain(code, 0, 4095));
+  analogWrite(PITCH_CV_PIN, 4095 - pwm);
+  analogWrite(AUX_CV_PIN, 4095 - pwm);
 
   if (doTrigger) gateTrigger();
 }
@@ -3021,7 +3010,8 @@ static void   drawValueEditor_0_000V(int x, int y, int mv, uint8_t cursorPos){
 
 static inline void setDACCode(uint16_t code) {
   if (code > 4095) code = 4095;
-  dac.setVoltage(code, false);
+  analogWrite(PITCH_CV_PIN, 4095 - code);
+  analogWrite(AUX_CV_PIN, 4095 - code);
 }
 
 static inline void setCalibRefOutput() {
