@@ -430,6 +430,7 @@ inline void gateHoldOn();
 inline void gateHoldOff();
 inline void processGatePulse();
 inline void previewGate();
+static inline void setGateOutput(bool open);
 
 inline void updatePitchMods();
 
@@ -519,7 +520,7 @@ void setup() {
 
   // Gate/trigger pin
   pinMode(GATE_PIN, OUTPUT);
-  digitalWrite(GATE_PIN, LOW);
+  digitalWrite(GATE_PIN, HIGH); // output stage inverts gate polarity
 
   // EEPROM
   eepromBeginIfNeeded();
@@ -1625,7 +1626,7 @@ void previewStep(uint8_t stepIndex) {
   uint32_t previewHigh = gatePeriod >> 1;
   if (previewHigh < PREVIEW_MIN_US) previewHigh = PREVIEW_MIN_US;
   if (previewHigh > PREVIEW_MAX_US) previewHigh = PREVIEW_MAX_US;
-  digitalWrite(GATE_PIN, HIGH);
+  setGateOutput(true);
   trigActive = true;
   trigOffAt  = micros() + previewHigh;
 
@@ -1633,6 +1634,9 @@ void previewStep(uint8_t stepIndex) {
 }
 
 /*** DAC & gate helpers *******************************************************/
+static inline void setGateOutput(bool open) {
+  digitalWrite(GATE_PIN, open ? LOW : HIGH);
+}
 static void rebuildCvCodeCache() {
   float span = Vfs_meas - V0_meas;
   if (span < 0.001f) span = 8.0f;
@@ -1669,7 +1673,7 @@ void handle_CV(float noteIndex, bool doTrigger) {
 }
 
 inline void gateTrigger() {
-  digitalWrite(GATE_PIN, HIGH);
+  setGateOutput(true);
   trigActive = true;
   trigOffAt = micros() + TRIG_US;
 }
@@ -1677,7 +1681,7 @@ inline void gateTrigger() {
 inline void gateStartHalfPeriod(uint32_t periodUs) {
   // Sequence gate: 25% shorter than the previous 50% duty pulse.
   uint32_t highUs = (periodUs * 3UL) >> 3; // 37.5% of the clock period
-  digitalWrite(GATE_PIN, HIGH);
+  setGateOutput(true);
   trigActive = true;
   trigOffAt = micros() + highUs;
 }
@@ -1686,25 +1690,25 @@ inline void previewGate() {
   uint32_t dur = lastGoodPeriodUs ? (lastGoodPeriodUs >> 1) : PREVIEW_FALLBACK_US;
   if (dur < PREVIEW_MIN_US) dur = PREVIEW_MIN_US;
   if (dur > PREVIEW_MAX_US) dur = PREVIEW_MAX_US;
-  digitalWrite(GATE_PIN, HIGH);
+  setGateOutput(true);
   trigActive = true;
   trigOffAt  = micros() + dur;
 }
 
 inline void gateHoldOn() {
-  digitalWrite(GATE_PIN, HIGH);
+  setGateOutput(true);
   gateSustain = true;
 }
 
 inline void gateHoldOff() {
   gateSustain = false;
-  if (!trigActive) digitalWrite(GATE_PIN, LOW);
+  if (!trigActive) setGateOutput(false);
 }
 
 inline void processGatePulse() {
   if (trigActive && (int32_t)(micros() - trigOffAt) >= 0) {
     trigActive = false;
-    if (!gateSustain) digitalWrite(GATE_PIN, LOW);
+    if (!gateSustain) setGateOutput(false);
   }
 }
 
@@ -1764,7 +1768,7 @@ inline void togglePlay() {
     glideActiveNow = false;
     gateHoldOff();
     trigActive = false;
-    digitalWrite(GATE_PIN, LOW);
+    setGateOutput(false);
     vibEnabledNow = false;
     subStepActive = false;
     ticksLeftForStep = 0;
@@ -1780,7 +1784,7 @@ inline void manualReset() {
   glideActiveNow = false;
   gateHoldOff();
   trigActive = false;
-  digitalWrite(GATE_PIN, LOW);
+  setGateOutput(false);
   vibEnabledNow = false;
   subStepActive = false;
   ticksLeftForStep = 0;
