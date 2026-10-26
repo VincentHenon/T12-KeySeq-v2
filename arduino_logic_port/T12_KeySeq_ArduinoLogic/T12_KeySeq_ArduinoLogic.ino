@@ -1669,7 +1669,8 @@ inline void gateTrigger() {
 }
 
 inline void gateStartHalfPeriod(uint32_t periodUs) {
-  uint32_t highUs = periodUs >> 1; // 50% duty
+  // Sequence gate: 25% shorter than the previous 50% duty pulse.
+  uint32_t highUs = (periodUs * 3UL) >> 3; // 37.5% of the clock period
   digitalWrite(GATE_PIN, HIGH);
   trigActive = true;
   trigOffAt = micros() + highUs;
