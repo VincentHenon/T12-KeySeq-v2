@@ -264,6 +264,7 @@ uint32_t trigOffAt = 0;
 /*** Notes & calibration ******************************************************/
 // Factory key assignment: chromatic notes centered around octave 2.
 int tabNote[12]       = {24, 27, 31, 34, 36, 39, 43, 46, 48, 51, 55, 58};
+static uint16_t cvCodeCache[96];
 int savedNotes[12]    = {0, 12, 7, 15, 24, 2, 3, 7, 8, 9, 10, 95}; // (unused mapping kept as example)
 const char *tableNoteName[12] = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};
 
@@ -468,6 +469,7 @@ static bool  saveSlotWithName(uint8_t slotIdx0, const char* nm);
 static bool  loadSlot(uint8_t slotIdx0);
 static void  fillSequenceBlobV2FromRAM(SequenceBlob_v2 &b);
 static void  autosaveSequenceIfChanged();
+static void rebuildCvCodeCache();
 
 
 /*** Setup (core 0) ***********************************************************/
@@ -494,10 +496,13 @@ void setup() {
 
   analogWriteRange(4095);
   analogWriteFreq(48828);
+  rebuildCvCodeCache();
 
   // Clock input
   pinMode(CLOCK_PIN, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(CLOCK_PIN), clockISR, FALLING);
+  // Clock input polarity: trigger on the rising edge (inverted from the
+  // previous active-low interpretation).
+  attachInterrupt(digitalPinToInterrupt(CLOCK_PIN), clockISR, RISING);
 
   // Encoder (rotation only)
   encoder.setEncoderHandler(onEncoderTurn);
@@ -1624,15 +1629,28 @@ void previewStep(uint8_t stepIndex) {
 }
 
 /*** DAC & gate helpers *******************************************************/
+static void rebuildCvCodeCache() {
+  float span = Vfs_meas - V0_meas;
+  if (span < 0.001f) span = 8.0f;
+  for (int n = 0; n < 96; ++n) {
+    float v = constrain(n / 12.0f, 0.0f, 8.0f);
+    float norm = constrain((v - V0_meas) / span, 0.0f, 1.0f);
+    cvCodeCache[n] = (uint16_t)round(norm * 4095.0f);
+  }
+}
+
 void handle_CV(float noteIndex, bool doTrigger) {
   float v = noteIndex / 12.0f;     // 1V/oct
   v = constrain(v, 0.0f, 8.0f);
 
-  float span = Vfs_meas - V0_meas;
-  int code = 0;
-  if (span > 0.001f) {
-    float norm = (v - V0_meas) / span;
-    norm = constrain(norm, 0.0f, 1.0f);
+  int roundedNote = (int)round(noteIndex);
+  int code;
+  if (fabsf(noteIndex - roundedNote) < 0.0001f && roundedNote >= 0 && roundedNote < 96) {
+    code = cvCodeCache[roundedNote];
+  } else {
+    float span = Vfs_meas - V0_meas;
+    if (span < 0.001f) span = 8.0f;
+    float norm = constrain((v - V0_meas) / span, 0.0f, 1.0f);
     code = (int)round(norm * 4095.0f);
   }
   // T12 CV stages invert the PWM analogue level.  Calibrated 0..8 V is
@@ -3129,6 +3147,8 @@ void scanBus(TwoWire &bus, const char* /*name*/) {
 // Persist the working sequence in flash-backed EEPROM slot 0.  A snapshot
 // comparison prevents writes while the sequencer is merely running.
 static void autosaveSequenceIfChanged() {
+  // Never let a flash commit compete with a running clock/step.
+  if (clockActive()) return;
   static SequenceBlob_v2 previous;
   static bool havePrevious = false;
   static uint32_t lastWriteMs = 0;
