@@ -259,7 +259,8 @@ bool trigActive  = false;
 uint32_t trigOffAt = 0;
 
 /*** Notes & calibration ******************************************************/
-int tabNote[12]       = {0, 3, 7, 10, 12, 15, 19, 22, 24, 27, 31, 34};
+// Factory key assignment: chromatic notes centered around octave 2.
+int tabNote[12]       = {24, 27, 31, 34, 36, 39, 43, 46, 48, 51, 55, 58};
 int savedNotes[12]    = {0, 12, 7, 15, 24, 2, 3, 7, 8, 9, 10, 95}; // (unused mapping kept as example)
 const char *tableNoteName[12] = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};
 
