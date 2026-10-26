@@ -461,6 +461,9 @@ static void prepareDefaultNameForSlot(uint8_t slot, char* out, size_t outsz);
 static char  nextCharInSet(char c, int dir);
 static void  trimTrailingSpaces(char* s);
 static bool  saveSlotWithName(uint8_t slotIdx0, const char* nm);
+static bool  loadSlot(uint8_t slotIdx0);
+static void  fillSequenceBlobV2FromRAM(SequenceBlob_v2 &b);
+static void  autosaveSequenceIfChanged();
 
 
 /*** Setup (core 0) ***********************************************************/
@@ -529,6 +532,9 @@ void setup() {
     seqGlide[i]   = false;
   }
 
+  // Slot 0 is the automatic working-sequence backup.
+  loadSlot(0);
+
   vibLastMicros = micros();
 }
 
@@ -552,6 +558,7 @@ void loop() {
   serviceKeyOverlayTimeout();
   encoder.update();
   checkEncoderClick();
+  autosaveSequenceIfChanged();
 }
 
 /*** Core 1: OLED renderer ****************************************************/
@@ -3103,5 +3110,26 @@ void scanBus(TwoWire &bus, const char* /*name*/) {
     bus.beginTransmission(addr);
     uint8_t err = bus.endTransmission();
     (void)err;
+  }
+}
+
+// Persist the working sequence in flash-backed EEPROM slot 0.  A snapshot
+// comparison prevents writes while the sequencer is merely running.
+static void autosaveSequenceIfChanged() {
+  static SequenceBlob_v2 previous;
+  static bool havePrevious = false;
+  static uint32_t lastWriteMs = 0;
+  SequenceBlob_v2 current;
+  fillSequenceBlobV2FromRAM(current);
+  if (!havePrevious) {
+    previous = current;
+    havePrevious = true;
+    return;
+  }
+  if (memcmp(&current, &previous, sizeof(current)) == 0) return;
+  if (millis() - lastWriteMs < 500) return;
+  if (saveSlotWithName(0, "AUTO")) {
+    previous = current;
+    lastWriteMs = millis();
   }
 }
