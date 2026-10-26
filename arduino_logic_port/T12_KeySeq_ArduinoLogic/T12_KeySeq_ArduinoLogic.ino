@@ -828,15 +828,15 @@ void scanKeys() {
 
   if (stableKey == 0) {
     if (raw == 0) { pressCand = 0; return; }
-    if (raw != pressCand) { pressCand = raw; pressSinceMs = now; return; }
-    if (now - pressSinceMs >= PRESS_MS) {
-      if (raw == lastPressedKey) return;
-      stableKey = pressCand;
-      lastPressedKey = stableKey;
-      onPress(stableKey);
-      lastNonZeroMs   = now;
-      holdLockUntilMs = now + LOCK_MS;
-    }
+    // The MPR121 already applies its own touch filter/debounce. Trigger on
+    // the first reported status change to avoid adding software latency.
+    if (raw == lastPressedKey) return;
+    pressCand = raw;
+    stableKey = raw;
+    lastPressedKey = stableKey;
+    onPress(stableKey);
+    lastNonZeroMs   = now;
+    holdLockUntilMs = now + LOCK_MS;
     return;
   }
 
