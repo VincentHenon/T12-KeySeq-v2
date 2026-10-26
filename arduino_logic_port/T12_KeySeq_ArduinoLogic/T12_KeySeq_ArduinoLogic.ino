@@ -477,9 +477,10 @@ void setup() {
   Wire.beginTransmission(MPR_ADDR); Wire.write(0x2D); Wire.write(0x00); Wire.endTransmission();
   Wire.beginTransmission(MPR_ADDR); Wire.write(0x2E); Wire.write(0x00); Wire.endTransmission();
   Wire.beginTransmission(MPR_ADDR); Wire.write(0x5B); Wire.write(0x10); Wire.endTransmission();
-  // Confirmed working T12 MPR121 configuration.
+  // Keep the confirmed charge/current configuration, but use the minimum
+  // electrode sample interval (ESI=1 ms) to reduce touch latency.
   Wire.beginTransmission(MPR_ADDR); Wire.write(0x5C); Wire.write(0x20); Wire.endTransmission();
-  Wire.beginTransmission(MPR_ADDR); Wire.write(0x5D); Wire.write(0x04); Wire.endTransmission();
+  Wire.beginTransmission(MPR_ADDR); Wire.write(0x5D); Wire.write(0x00); Wire.endTransmission();
   Wire.beginTransmission(MPR_ADDR); Wire.write(0x5E); Wire.write(0x0C); Wire.endTransmission();
 
   analogWriteRange(4095);
