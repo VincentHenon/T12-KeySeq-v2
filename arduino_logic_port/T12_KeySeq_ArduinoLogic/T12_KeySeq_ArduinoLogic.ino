@@ -24,9 +24,9 @@ struct SequenceBlob;           // (not used: no save/load in this build)
 /*** Pins *********************************************************************/
 const int MPR_SDA = 0, MPR_SCL = 1;
 const uint8_t MPR_ADDR = 0x5A;
-const bool ENABLE_MPR121 = false; // latency isolation build
-const bool ENABLE_CV_OUTPUT = false; // isolate gate timing from PWM/CV path
-const bool ENABLE_DISPLAY = false;   // isolate gate timing from OLED/SPI path
+const bool ENABLE_MPR121 = true;
+const bool ENABLE_CV_OUTPUT = true;
+const bool ENABLE_DISPLAY = true;
 
 const int ENC_CLK = 11;
 const int ENC_DT  = 12;
@@ -933,6 +933,17 @@ void onEncoderTurn(EEncoder& enc) {
       }
       // keep VFS > V0 + 100mV
       if (calib_vfs_mV <= calib_v0_mV + 100) calib_vfs_mV = clampVFSmV(calib_v0_mV + 100);
+      markUI();
+
+    } else if (settingsState == S_CLOCK) {
+      const uint8_t allowed[] = {1, 2, 4, 8, 16};
+      int idx = 0;
+      for (uint8_t j = 0; j < sizeof(allowed); ++j)
+        if (allowed[j] == g_clockDiv) idx = j;
+      idx += (inc > 0) ? 1 : -1;
+      if (idx < 0) idx = (int)sizeof(allowed) - 1;
+      if (idx >= (int)sizeof(allowed)) idx = 0;
+      setClockDiv(allowed[idx]);
       markUI();
 
     } else if (settingsState == S_SAVELOAD) {
@@ -2530,10 +2541,10 @@ void drawClockPage() {
   drawListHeader("CLOCK");
   u8g2.setFont(u8g2_font_7x13_tf);
   char l1[28];
-  float ms = lastGoodPeriodUs/1000.0f;
-  snprintf(l1, sizeof(l1), "Period: %0.2f ms", ms);
+  snprintf(l1, sizeof(l1), "Division: /%u", g_clockDiv);
   u8g2.drawUTF8(6, 30, l1);
-  u8g2.drawUTF8(6, 46, "Click: exit");
+  u8g2.drawUTF8(6, 46, "Turn: change");
+  u8g2.drawUTF8(6, 62, "Click: exit");
 }
 
 /*** Parameters pages (EDITSEQ) ***********************************************/
