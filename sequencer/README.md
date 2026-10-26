@@ -1,8 +1,8 @@
-# T12 Sequencer — MVP 0.1.4
+# T12 Sequencer — MVP 0.1.5
 
 Firmware en **C++20 natif, Raspberry Pi Pico SDK 2.2.0**, pour le Doboz T12 DIY v20 / RP2040. Aucune dépendance au framework Arduino. Les protocoles du diagnostic matériel validé sont repris : OLED SPI avec correction des deux colonnes, MPR121, LED GRB 800 kHz, boutons, encodeur, jacks et PWM CV inversé. Les touches et LED suivent la même grille : Key 1 en haut à gauche, Key 4 en haut à droite, Key 9 en bas à gauche et Key 12 en bas à droite.
 
-**UF2 : [T12_Sequencer_MVP_v0.1.4.uf2](../T12_Sequencer_MVP_v0.1.4.uf2).** Au démarrage l’écran affiche `T12 SEQUENCER / MVP 0.1.4 / C++ PICO SDK`, puis `STOP`.
+**UF2 : [T12_Sequencer_MVP_v0.1.5.uf2](../T12_Sequencer_MVP_v0.1.5.uf2).** Au démarrage l’écran affiche `T12 SEQUENCER / MVP 0.1.5 / C++ PICO SDK`, puis `STOP`.
 
 Le binaire est compilé et les tests logiciels passent. Le fonctionnement de cette nouvelle application complète reste à confirmer sur le module. La calibration précise 1 V/oct reste celle à affiner à partir du diagnostic v24.
 

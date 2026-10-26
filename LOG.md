@@ -1,5 +1,11 @@
 # Journal des versions T12 KeySeq
 
+## 0.1.5 — 2026-10-26
+
+- La boucle principale ne calcule et n’écrit plus le CV/Gate deux fois par cycle.
+- Les entrées sont lues et traitées avant l’unique mise à jour moteur et l’unique écriture matérielle.
+- UF2 : `T12_Sequencer_MVP_v0.1.5.uf2`.
+
 ## 0.1.4 — 2026-10-26
 
 - Polling MPR121 réduit de 5 ms à 1 ms pour rendre le déclenchement live pendant l’enregistrement plus immédiat.

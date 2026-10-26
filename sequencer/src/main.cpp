@@ -23,13 +23,13 @@ int main() {
   static Ui ui(project, settings, engine);
   static Canvas canvas;
   canvas.text(0, 8, "T12 SEQUENCER");
-  canvas.text(0, 24, "MVP 0.1.4");
+  canvas.text(0, 24, "MVP 0.1.5");
   canvas.text(0, 40, "C++ PICO SDK");
   display::publish(canvas);
   sleep_ms(600);
   hw::clearEdges();
   uint64_t nextUi = 0, nextLeds = 0;
-  std::printf("T12 Sequencer 0.1.4 / native Pico SDK / storage %s\n",
+  std::printf("T12 Sequencer 0.1.5 / native Pico SDK / storage %s\n",
               storage::available() ? "ready" : "unavailable");
   while (true) {
     uint64_t now = time_us_64();
@@ -47,12 +47,9 @@ int main() {
       ui.fault("CLOCK OVERFLOW", now);
       hw::clearEdges();
     }
-    engine.update(now);
-    hw::write(ui.calibrationActive() ? ui.calibrationOutput() : engine.output(),
-              settings);
     auto input = hw::poll(now);
     ui.input(input, now);
-    // Refresh time after potentially slow flash operations in a UI action.
+    // Refresh time after input handling and any potentially slow flash action.
     now = time_us_64();
     engine.update(now);
     if (ui.settingsSaveDue(now) && !engine.running())
