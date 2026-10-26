@@ -477,11 +477,10 @@ void setup() {
   Wire.beginTransmission(MPR_ADDR); Wire.write(0x2D); Wire.write(0x00); Wire.endTransmission();
   Wire.beginTransmission(MPR_ADDR); Wire.write(0x2E); Wire.write(0x00); Wire.endTransmission();
   Wire.beginTransmission(MPR_ADDR); Wire.write(0x5B); Wire.write(0x10); Wire.endTransmission();
-  // Fast touch response: FFI=0 (6 samples), SFI=0 (4 samples),
-  // ESI=0 (1 ms).  The previous FFI=2/ESI=4 combination imposed a
-  // roughly 16 ms sensor-side update interval before the MCU could react.
-  Wire.beginTransmission(MPR_ADDR); Wire.write(0x5C); Wire.write(0x00); Wire.endTransmission();
-  Wire.beginTransmission(MPR_ADDR); Wire.write(0x5D); Wire.write(0x00); Wire.endTransmission();
+  // Fast but valid touch response. Keep non-zero CDC/CDT so the electrodes
+  // are actually charged: FFI=1, CDC=1 uA; CDT=1, SFI=0, ESI=1 ms.
+  Wire.beginTransmission(MPR_ADDR); Wire.write(0x5C); Wire.write(0x20); Wire.endTransmission();
+  Wire.beginTransmission(MPR_ADDR); Wire.write(0x5D); Wire.write(0x20); Wire.endTransmission();
   Wire.beginTransmission(MPR_ADDR); Wire.write(0x5E); Wire.write(0x0C); Wire.endTransmission();
 
   analogWriteRange(4095);
