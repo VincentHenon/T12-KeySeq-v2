@@ -26,6 +26,7 @@ const int MPR_SDA = 0, MPR_SCL = 1;
 const uint8_t MPR_ADDR = 0x5A;
 const bool ENABLE_MPR121 = false; // latency isolation build
 const bool ENABLE_CV_OUTPUT = false; // isolate gate timing from PWM/CV path
+const bool ENABLE_DISPLAY = false;   // isolate gate timing from OLED/SPI path
 
 const int ENC_CLK = 11;
 const int ENC_DT  = 12;
@@ -578,6 +579,7 @@ void loop() {
 
 /*** Core 1: OLED renderer ****************************************************/
 void setup1() {
+  if (!ENABLE_DISPLAY) return;
   u8g2.begin();
   u8g2.enableUTF8Print();
   lastUiMs = 0;
@@ -585,6 +587,7 @@ void setup1() {
 }
 
 void loop1() {
+  if (!ENABLE_DISPLAY) return;
   if (uiDirty && (millis() - lastUiMs) >= UI_INTERVAL_MS) {
     drawScreen();
     lastUiMs = millis();
