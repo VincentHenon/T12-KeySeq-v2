@@ -10,7 +10,7 @@ namespace {
 // Conservative 2 MiB flash boundary. Never write past a chip's reported size.
 constexpr uint32_t FlashBytes = 2 * 1024 * 1024, Sector = 4096,
                    Base = FlashBytes - (Slots + 1) * 2 * Sector;
-constexpr uint32_t Magic = 0x54313253, Version = 10;
+constexpr uint32_t Magic = 0x54313253, Version = 11;
 struct Header {
   uint32_t magic, version, generation, size, crc;
 };

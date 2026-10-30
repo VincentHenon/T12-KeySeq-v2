@@ -125,6 +125,8 @@ bool valid(const Settings &s) {
           c.fineTenthsMv[i] < -100 || c.fineTenthsMv[i] > 100)
         return false;
   }
+  for (auto adc : s.cvInputAdc)
+    if (adc > 4095) return false;
   return true;
 }
 } // namespace t12

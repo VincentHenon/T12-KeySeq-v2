@@ -50,6 +50,9 @@ struct Settings {
   uint8_t reverseEncoder = 1;
   float vibratoHz = 8, vibratoCents = 30;
   Calibration pitch{}, auxiliary{7.780f, 8.528f};
+  // ADC readings captured from CV IN while the calibrated Pitch CV output
+  // generates 0, 2, 4, 6 and 8 V.
+  uint16_t cvInputAdc[CalibrationPoints]{};
 };
 struct Scale {
   const char *name;

@@ -93,8 +93,10 @@ public:
     const float volts = page_ == Page::CalibrationResult
                             ? float(calPoint_)
                             : float(calPoint_ * 2);
-    return {calChannel_ == 0 ? volts : 0,
-            calChannel_ == 1 ? volts : 0, false};
+    // Input calibration drives the already-calibrated Pitch output so the
+    // user can loop CV NOTE OUT directly into CV IN.
+    return {calChannel_ == 1 ? 0.0f : volts,
+            calChannel_ == 1 ? volts : 0.0f, false};
   }
 };
 } // namespace t12
