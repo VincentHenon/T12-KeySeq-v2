@@ -1,5 +1,0 @@
-/Users/vincenthenon/Desktop/T12_alternative_firmware/build/sequencer/pioasm-install/pioasm/pioasm
-/Users/vincenthenon/Desktop/T12_alternative_firmware/build/sequencer/pioasm-install/pioasm/pioasmTargets.cmake
-/Users/vincenthenon/Desktop/T12_alternative_firmware/build/sequencer/pioasm-install/pioasm/pioasmTargets-release.cmake
-/Users/vincenthenon/Desktop/T12_alternative_firmware/build/sequencer/pioasm-install/pioasm/pioasmConfig.cmake
-/Users/vincenthenon/Desktop/T12_alternative_firmware/build/sequencer/pioasm-install/pioasm/pioasmConfigVersion.cmake
