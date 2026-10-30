@@ -23,14 +23,14 @@ int main() {
   static Ui ui(project, settings, engine);
   static Canvas canvas;
   canvas.text(0, 8, "T12 SEQUENCER");
-  canvas.text(0, 24, "MVP 0.1.92");
+  canvas.text(0, 24, "MVP 0.1.93");
   canvas.text(0, 40, "C++ PICO SDK");
   display::publish(canvas);
   sleep_ms(600);
   hw::clearEdges();
   uint64_t nextUi = 0, nextLeds = 0;
   bool ledTransportRunning = engine.running();
-  std::printf("T12 Sequencer 0.1.92 / native Pico SDK / storage %s\n",
+  std::printf("T12 Sequencer 0.1.93 / native Pico SDK / storage %s\n",
               storage::available() ? "ready" : "unavailable");
   while (true) {
     usbproto::service(project, settings);
@@ -95,7 +95,7 @@ int main() {
                ui.showSelectedLed() ? ui.selectedKey() : -1,
                ui.showPlayingLed() ? engine.soundingKey() : -1,
                settings.brightness, ui.recording(), input.touchCap,
-               ui.keyEditing());
+               ui.keyEditing(), ui.selectedKeyNote(), ui.keyNotes());
     }
     hw::serviceLeds();
     sleep_us(100);

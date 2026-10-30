@@ -29,7 +29,8 @@ void clearEdges();
 void write(const Output &, const Settings &);
 void leds(uint16_t held, int selected, int playing, uint8_t brightness,
           bool recording, const uint16_t *touchCap = nullptr,
-          bool orangeSelected = false);
+          bool orangeSelected = false, int selectedNote = 0,
+          const uint8_t *keyNotes = nullptr);
 void serviceLeds();
 uint16_t duty(float volts, const Calibration &);
 bool clockHigh();

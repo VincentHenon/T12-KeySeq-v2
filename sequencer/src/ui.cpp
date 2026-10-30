@@ -1074,6 +1074,9 @@ void Ui::draw(Canvas &c, uint64_t now) const {
       bool selected = page_ == Page::Steps ? i == step_
                       : engine_.running()  ? i == engine_.playhead()
                                            : i == step_;
+      const bool inLoop = p_.loopLength &&
+                          i >= p_.loopOffset &&
+                          i < unsigned(p_.loopOffset + p_.loopLength);
       if (i < p_.length) {
         const bool showGateIcons = page_ == Page::Play || page_ == Page::Steps;
         if (showGateIcons) {
@@ -1087,6 +1090,13 @@ void Ui::draw(Canvas &c, uint64_t now) const {
         }
       } else
         c.pixel(x + 2, y + 3);
+      if ((page_ == Page::Play || page_ == Page::Steps) && inLoop) {
+        // Mark the active loop window without covering its gate icon.
+        c.pixel(x, y);
+        c.pixel(x + 11, y);
+        c.pixel(x, y + 11);
+        c.pixel(x + 11, y + 11);
+      }
     }
     if (page_ == Page::Steps && p_.length) {
       const auto &st = p_.steps[step_];

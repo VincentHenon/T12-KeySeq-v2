@@ -8,6 +8,8 @@ public:
   void input(const hw::Input &, uint64_t now);
   void draw(Canvas &, uint64_t now) const;
   int selectedKey() const { return int(key_); }
+  int selectedKeyNote() const { return int(p_.notes[key_ < Keys ? key_ : 0]); }
+  const uint8_t *keyNotes() const { return p_.notes; }
   bool showSelectedLed() const {
     return page_ == Page::Keys || page_ == Page::Steps || page_ == Page::Record;
   }

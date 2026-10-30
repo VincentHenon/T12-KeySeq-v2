@@ -300,12 +300,37 @@ void write(const Output &o, const Settings &s) {
   gpio_put(pin::Gate, o.gate ? 0 : 1);
 }
 void leds(uint16_t held, int selected, int playing, uint8_t brightness,
-          bool recording, const uint16_t *touchCap, bool orangeSelected) {
+          bool recording, const uint16_t *touchCap, bool orangeSelected,
+          int selectedNote, const uint8_t *keyNotes) {
   for (int k = 0; k < 12; ++k) {
     // Unused pixels must be completely dark.  A non-zero blue floor leaves
     // the last playhead visibly latched when transport stops.
     unsigned r = 0, g = 0, b = 0;
-    if (k == selected && playing < 0) {
+    if (orangeSelected) {
+      // KEY EDIT: every assigned key is visible at low intensity. The note
+      // octave maps from blue/cold to red/warm; the edited key is brighter.
+      const int note = (k == selected) ? selectedNote
+                                       : (keyNotes ? keyNotes[k] : 36 + k);
+      const int oct = std::clamp(note / 12, 0, 8);
+      const int hue = 240 - oct * 30;
+      const int sector = hue / 60;
+      const int f = (hue % 60) * 255 / 60;
+      const int q = 255 - f;
+      switch (sector) {
+      case 0: r = 255; g = f; b = 0; break;
+      case 1: r = q; g = 255; b = 0; break;
+      case 2: r = 0; g = 255; b = f; break;
+      case 3: r = 0; g = q; b = 255; break;
+      default: r = 0; g = 0; b = 255; break;
+      }
+      if (k != selected) { r /= 5; g /= 5; b /= 5; }
+    } else if (playing >= 0) {
+      // LIVE playback: every key stays visible dimly in blue; the sounding
+      // key is overwritten below with the brighter pink playhead color.
+      r = 0;
+      g = 0;
+      b = 255 / 2;
+    } else if (k == selected && playing < 0) {
       if (orangeSelected) {
         r = 255;
         g = 72;

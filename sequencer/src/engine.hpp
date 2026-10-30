@@ -43,6 +43,7 @@ private:
   Output output_{};
   uint8_t retrigger_ = 0;
   bool running_ = false, vibrato_ = false, hasClock_ = false, clockWasExternal_ = false;
+  bool fixedPreviewGate_ = false;
   bool clockIgnored_ = false;
   uint8_t next_ = 0, current_ = 0, remaining_ = 0, elapsed_ = 0, division_ = 0;
   int liveKey_ = -1, sounding_ = -1;

@@ -14,8 +14,9 @@ void Engine::gate(uint64_t now, uint64_t duration) {
     ++retrigger_;
   output_.gate = false;
   output_.gate = true;
-  const uint64_t gateDuration =
-      std::max<uint64_t>(1000, duration * s_.gateLength / 100);
+  const uint64_t gateDuration = fixedPreviewGate_
+      ? duration
+      : std::max<uint64_t>(1000, duration * s_.gateLength / 100);
   gateOff_ = now + gateDuration;
 }
 void Engine::queueGate(uint64_t now, uint64_t duration) {
@@ -270,7 +271,11 @@ void Engine::preview(unsigned key, uint64_t now, const Step *step) {
   // Short manual/recording previews must retrigger cleanly when keys are
   // played rapidly; the previous 20 ms minimum held the gate too long.
   const uint8_t queuedBefore = retrigger_;
-  sound(key, st, now, std::clamp<uint64_t>(period_, 2000, 1000000), false);
+  // Manual previews use a stable musical response independent of the clock.
+  // The normal gate-length percentage is still applied inside gate().
+  fixedPreviewGate_ = true;
+  sound(key, st, now, 300000, false);
+  fixedPreviewGate_ = false;
   // A preview is a new user event even when the previous gate has already
   // expired. Queue a physical edge for every preview; otherwise a rapid
   // sequence can update the OLED/LEDs while the gate output remains high and
