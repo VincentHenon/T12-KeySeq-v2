@@ -11,7 +11,7 @@ struct Step {
   uint8_t retrigger = 0, glide = 0, vibrato = 0;
   uint8_t ratchet = 1; // equal gate repeats across this complete step: 1..8
   int8_t shift = 0;    // scale degrees added each time this step returns
-  enum class GateType : uint8_t { Single, Multi, Hold, Rest, Skip };
+  enum class GateType : uint8_t { Single, Multi, Hold, Rest, Skip, Ratchet };
   GateType gate = GateType::Single;
   uint8_t length = 1;  // clock steps occupied by this event
   uint8_t variant = 0;

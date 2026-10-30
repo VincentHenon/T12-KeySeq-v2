@@ -41,20 +41,28 @@ private:
     Name,
     Calibration,
     CalibrationResult,
-    ConfirmRecord
+    ConfirmRecord,
+    ConfirmExitRecord
   };
   Project &p_;
+  Project recordBackup_{};
   Settings &s_;
   Engine &engine_;
   Page page_ = Page::Play, return_ = Page::Play;
   unsigned row_ = 0, key_ = 0, step_ = 0, slot_ = 0, custom_ = 0, piano_ = 0,
            namePos_ = 0, calChannel_ = 0, calPoint_ = 0;
   unsigned playParam_ = 0;
-  bool editing_ = false, recordFull_ = false, wasRunning_ = false,
+  bool editing_ = false, recordFull_ = false, recordAppending_ = false,
+       recordReplacePending_ = false,
+       wasRunning_ = false,
+       recordBackupValid_ = false,
        dirty_ = false, settingsDirty_ = false;
   uint16_t customMask_ = 0xFFF;
   char editedName_[17]{}, message_[22]{};
   uint64_t messageUntil_ = 0;
+  uint64_t liveModalUntil_ = 0;
+  uint64_t editModalUntil_ = 0;
+  char editModalText_[22]{};
   uint64_t settingsSaveDue_ = 0;
   uint64_t projectSaveDue_ = 0;
   uint64_t nextMinusRepeat_ = 0, nextPlusRepeat_ = 0;
@@ -68,6 +76,7 @@ private:
   void changeValue(int delta, uint64_t now);
   void startRecord(uint64_t now);
   void endRecord(uint64_t now);
+  void discardRecord(uint64_t now);
   void saveSettings(uint64_t now);
   void settingsChanged(uint64_t now);
   void suspend(uint64_t now);

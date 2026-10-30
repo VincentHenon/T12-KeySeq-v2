@@ -311,9 +311,11 @@ void leds(uint16_t held, int selected, int playing, uint8_t brightness,
         g = 72;
         b = 0;
       } else {
-        r = 12;
-        g = 12;
-        b = 32;
+        // Browsing a recorded step uses a blue/violet marker. The key editor
+        // passes orangeSelected=true for its dedicated orange cursor.
+        r = 64;
+        g = 8;
+        b = 220;
       }
     }
     // A directly touched pad has priority over the sequence playhead.  This
@@ -327,9 +329,15 @@ void leds(uint16_t held, int selected, int playing, uint8_t brightness,
     }
     if (held & (1u << k)) {
       // A finger on a pad takes priority over the playback indication.
-      r = 255;
-      g = 20;
-      b = 160;
+      if (recording) {
+        r = 255;
+        g = 0;
+        b = 0;
+      } else {
+        r = 255;
+        g = 20;
+        b = 160;
+      }
       // MPR121 filtered capacitance controls the intensity of the touched
       // pad. Keep a visible floor so a light touch is still identifiable.
       if (touchCap) {

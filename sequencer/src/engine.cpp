@@ -44,14 +44,18 @@ void Engine::sound(unsigned key, const Step &st, uint64_t now,
     ratchetDue_ = ratchetInterval_ = 0;
     return;
   }
-  if (trans && st.ratchet > 1) {
-    ratchetInterval_ = std::max<uint64_t>(1000, duration / st.ratchet);
-    ratchetsRemaining_ = st.ratchet - 1;
+  if (trans && st.gate == Step::GateType::Ratchet && st.length > 1) {
+    ratchetInterval_ = std::max<uint64_t>(1000, duration / st.length);
+    // A ratchet pulse occupies exactly 50% of its subdivided interval,
+    // independently of the global gate-length setting.
+    ratchetPulse_ = std::max<uint64_t>(1000,
+        ratchetInterval_ * 50 / std::max<unsigned>(1, s_.gateLength));
+    ratchetsRemaining_ = st.length - 1;
     ratchetDue_ = now + ratchetInterval_;
-    queueGate(now, ratchetInterval_);
+    queueGate(now, ratchetPulse_);
   } else {
     ratchetsRemaining_ = 0;
-    ratchetDue_ = ratchetInterval_ = 0;
+    ratchetDue_ = ratchetInterval_ = ratchetPulse_ = 0;
     queueGate(now, duration);
   }
   if (st.gate == Step::GateType::Hold)
@@ -78,10 +82,22 @@ void Engine::halfTick(uint64_t now) {
     activePhysical_ = physical;
     active_ = p_.steps[physical];
     elapsed_ = 0;
+    // SKIP is not a timed rest: resolve chained skipped steps immediately at
+    // the same clock timestamp until a playable step is found.
+    if (active_.gate == Step::GateType::Skip) {
+      remaining_ = 0;
+      halfTick(now);
+      return;
+    }
     const unsigned length = std::clamp<unsigned>(active_.length ? active_.length : 1, 1, 8);
-    remaining_ = uint8_t(2 * length);
+    // Ratchet step length is the subdivision count, not a multi-step hold:
+    // the complete ratchet must fit inside one clock step.
+    const unsigned timingLength =
+        (active_.gate == Step::GateType::Ratchet ||
+         active_.gate == Step::GateType::Skip) ? 1 : length;
+    remaining_ = uint8_t(2 * timingLength);
     const auto gate = active_.gate;
-    if (gate == Step::GateType::Rest || gate == Step::GateType::Skip || active_.time == 0) {
+    if (gate == Step::GateType::Rest || active_.time == 0) {
       output_.gate = false;
       gateOff_ = 0;
       vibrato_ = false;
@@ -208,7 +224,7 @@ void Engine::reset(uint64_t now) {
   next_ = current_ = remaining_ = elapsed_ = division_ = 0;
   halfDue_ = 0;
   ratchetsRemaining_ = 0;
-  ratchetDue_ = ratchetInterval_ = 0;
+    ratchetDue_ = ratchetInterval_ = ratchetPulse_ = 0;
   std::fill(shiftAccum_, shiftAccum_ + Steps, int8_t(0));
   std::fill(variantAccum_, variantAccum_ + Steps, int8_t(0));
   output_.gate = false;
@@ -325,7 +341,7 @@ void Engine::update(uint64_t now) {
     break;
   }
   while (ratchetsRemaining_ && now >= ratchetDue_) {
-    queueGate(ratchetDue_, ratchetInterval_);
+    queueGate(ratchetDue_, ratchetPulse_);
     ratchetDue_ += ratchetInterval_;
     --ratchetsRemaining_;
   }

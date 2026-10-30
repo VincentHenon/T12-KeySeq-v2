@@ -80,7 +80,7 @@ bool valid(const Project &p) {
   for (auto st : p.steps)
     if (st.key >= Keys || st.time < -1 || st.time > 8 || st.retrigger > 1 ||
         st.glide > 1 || st.vibrato > 1 || st.ratchet < 1 || st.ratchet > 8 ||
-        st.shift < -7 || st.shift > 7 || uint8_t(st.gate) > 4 ||
+        st.shift < -7 || st.shift > 7 || uint8_t(st.gate) > 5 ||
         st.length < 1 || st.length > 8 || st.variant > 1 ||
         st.variantDegree < -24 || st.variantDegree > 24 ||
         st.variantMin < -24 || st.variantMin > 0 || st.variantMax < 0 ||

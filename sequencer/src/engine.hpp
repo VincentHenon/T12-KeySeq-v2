@@ -54,7 +54,7 @@ private:
   uint32_t clockEvents_ = 0, resetEvents_ = 0;
   uint64_t lastExternal_ = 0, nextInternal_ = 0, halfDue_ = 0, gateOff_ = 0,
            lastTap_ = 0;
-  uint64_t ratchetDue_ = 0, ratchetInterval_ = 0;
+  uint64_t ratchetDue_ = 0, ratchetInterval_ = 0, ratchetPulse_ = 0;
   uint8_t ratchetsRemaining_ = 0;
   int8_t shiftAccum_[Steps]{};
   int8_t variantAccum_[Steps]{};
