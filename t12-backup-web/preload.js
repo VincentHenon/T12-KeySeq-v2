@@ -1,0 +1,1 @@
+const {contextBridge,ipcRenderer}=require('electron');contextBridge.exposeInMainWorld('t12',{ports:()=>ipcRenderer.invoke('ports'),dump:p=>ipcRenderer.invoke('dump',p),restore:p=>ipcRenderer.invoke('restore',p)});

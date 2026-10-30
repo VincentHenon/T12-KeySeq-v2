@@ -80,15 +80,28 @@ bool valid(const Project &p) {
   for (auto st : p.steps)
     if (st.key >= Keys || st.time < -1 || st.time > 8 || st.retrigger > 1 ||
         st.glide > 1 || st.vibrato > 1 || st.ratchet < 1 || st.ratchet > 8 ||
-        st.shift < -7 || st.shift > 7)
+        st.shift < -7 || st.shift > 7 || uint8_t(st.gate) > 4 ||
+        st.length < 1 || st.length > 8 || st.variant > 1 ||
+        st.variantDegree < -24 || st.variantDegree > 24 ||
+        st.variantMin < -24 || st.variantMin > 0 || st.variantMax < 0 ||
+        st.variantMax > 24 || st.variantMin > st.variantMax)
       return false;
+  if (p.length && ((p.loopLength && p.loopLength > p.length) ||
+                   p.loopOffset + (p.loopLength ? p.loopLength : p.length) > p.length))
+    return false;
   return true;
 }
 bool valid(const Settings &s) {
   if (s.bpm < 20 || s.bpm > 300 || !s.division || s.division > 16 ||
       (s.division & (s.division - 1)) || unsigned(s.clock) > 2 ||
-      unsigned(s.aux) > 3 || unsigned(s.glideShape) > 2 || s.reverseEncoder > 1)
+      unsigned(s.aux) > 4 || unsigned(s.glideShape) > 2 || s.reverseEncoder > 1 ||
+      s.gateLength < 10 || s.gateLength > 90)
     return false;
+  if (s.sequenceDirection > 2 || s.arpDirection > 2)
+    return false;
+  for (unsigned i = 0; i < Keys; ++i)
+    if (s.capRange[i] == 0 || s.capRange[i] > 1023 || s.capIdle[i] > 1023)
+      return false;
   if (!std::isfinite(s.vibratoHz) || s.vibratoHz < 0.1f || s.vibratoHz > 20 ||
       !std::isfinite(s.vibratoCents) || s.vibratoCents < 0 ||
       s.vibratoCents > 200)
@@ -100,6 +113,18 @@ bool valid(const Settings &s) {
     if (!std::isfinite(c.intercept) || !std::isfinite(c.span) ||
         c.intercept < 6 || c.intercept > 10 || c.span < 6 || c.span > 12)
       return false;
+  for (const auto &c : {s.pitch, s.auxiliary}) {
+    float previous = -2.0f;
+    for (float x : c.measured) {
+      if (!std::isfinite(x) || x < -1.0f || x > 10.0f || x <= previous + 0.02f)
+        return false;
+      previous = x;
+    }
+    for (unsigned i = 0; i < CalibrationPoints; ++i)
+      if (c.coarseMv[i] < -1000 || c.coarseMv[i] > 1000 ||
+          c.fineTenthsMv[i] < -100 || c.fineTenthsMv[i] > 100)
+        return false;
+  }
   return true;
 }
 } // namespace t12

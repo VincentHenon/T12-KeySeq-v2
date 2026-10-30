@@ -74,13 +74,24 @@ void Canvas::pixel(int x, int y, bool on) {
     b &= uint8_t(~mask);
 }
 void Canvas::text(int x, int y, const char *s) {
+  textScaled(x, y, s, 1, false);
+}
+void Canvas::textScaled(int x, int y, const char *s, unsigned scale, bool bold) {
+  scale = scale < 1 ? 1 : (scale > 5 ? 5 : scale);
   while (*s) {
     const auto *g = glyphFor(*s++);
     for (int c = 0; c < 5; ++c)
       for (int r = 0; r < 7; ++r)
         if (g[c] & (1u << r))
-          pixel(x + c, y + r);
-    x += 6;
+          for (unsigned dx = 0; dx < scale; ++dx)
+            for (unsigned dy = 0; dy < scale; ++dy) {
+              pixel(x + c * int(scale) + int(dx),
+                    y + r * int(scale) + int(dy));
+              if (bold)
+                pixel(x + c * int(scale) + int(dx) + int(scale),
+                      y + r * int(scale) + int(dy));
+            }
+    x += int(6 * scale) + (bold ? int(scale) : 0);
   }
 }
 void Canvas::box(int x, int y, int w, int h, bool fill, bool on) {

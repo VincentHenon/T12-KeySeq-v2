@@ -15,7 +15,6 @@ struct GlobalSettings;         // (not used: no save/load in this build)
 struct SequenceBlob;           // (not used: no save/load in this build)
 
 #include <Wire.h>
-#include <Adafruit_MCP4725.h>
 #include <EEncoder.h>
 #include <U8g2lib.h>
 #include <math.h>
@@ -23,24 +22,25 @@ struct SequenceBlob;           // (not used: no save/load in this build)
 #include <string.h>
 
 /*** Pins *********************************************************************/
-const int KP_SCL = 17;                // TTP229 SCL (clock)
-const int KP_SDO = 16;                // TTP229 SDO (data)
+const int MPR_SDA = 0;
+const int MPR_SCL = 1;
+const uint8_t MPR_ADDR = 0x5A;
 
-const int ENC_CLK = 6;
-const int ENC_DT  = 7;
-const int ENC_SW  = 8;                // encoder pushbutton (read manually)
+const int ENC_CLK = 11;
+const int ENC_DT  = 12;
+const int ENC_SW  = 10;
 
-const uint CLOCK_PIN = 2;
+const uint CLOCK_PIN = 3;
 
-const int GATE_PIN = 18;              // gate/trigger output
+const int GATE_PIN = 7;               // gate/trigger output
+const int PITCH_CV_PIN = 4;
+const int AUX_CV_PIN = 5;
 
-// I2C1 (Wire1) for DAC 
-const int DAC_SDA_PIN = 14;
-const int DAC_SCL_PIN = 15;
-
-// I2C0 (Wire) for OLED 
-const int OLED_SDA_PIN = 4;
-const int OLED_SCL_PIN = 5;
+const int OLED_CS_PIN = 17;
+const int OLED_DC_PIN = 16;
+const int OLED_SCK_PIN = 18;
+const int OLED_MOSI_PIN = 19;
+const int OLED_RST_PIN = 20;
 
 // ---------- Save/Load layout ----------
 #define NUM_SLOTS      8
@@ -162,12 +162,12 @@ const uint32_t PREVIEW_MIN_US      = 10000;  // clamp 10 ms
 const uint32_t PREVIEW_MAX_US      = 500000; // clamp 500 ms
 
 /*** Peripherals **************************************************************/
-Adafruit_MCP4725 dac;
 EEncoder encoder(ENC_CLK, ENC_DT, ENC_SW, 4); // rotation only
 const bool REVERSE_ORDER = false;             // flip if keypad is mirrored
 
 // OLED on I2C0 (Wire)
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+U8G2_SSD1306_128X64_NONAME_F_4W_HW_SPI u8g2(
+  U8G2_R0, OLED_CS_PIN, OLED_DC_PIN, OLED_RST_PIN);
 
 // UI throttle & dirty flag
 uint32_t lastUiMs = 0;

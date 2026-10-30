@@ -15,6 +15,7 @@ struct Input {
   bool click = false, longClick = false, minus = false, plus = false;
   bool minusHeld = false, plusHeld = false, touchOk = false;
   uint16_t keys = 0, pressed = 0, cvRaw = 0;
+  uint16_t touchCap[Keys]{};
 };
 struct Edge {
   uint64_t time;
@@ -27,7 +28,8 @@ bool overflowed();
 void clearEdges();
 void write(const Output &, const Settings &);
 void leds(uint16_t held, int selected, int playing, uint8_t brightness,
-          bool recording);
+          bool recording, const uint16_t *touchCap = nullptr,
+          bool orangeSelected = false);
 void serviceLeds();
 uint16_t duty(float volts, const Calibration &);
 bool clockHigh();

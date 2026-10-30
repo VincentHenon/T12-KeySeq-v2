@@ -84,9 +84,9 @@ La page `CLOCK` affiche aussi `CLOCK IN` et `RESET IN` : le compteur augmente à
 - GP26 : CV In est configuré en ADC et lu. Son affectation musicale reste à définir ; il n’agit pas sur le MVP.
 - GP2 : LED RGB des pads ; sélection bleutée, touche jouée verte, touche appuyée blanche.
 
-Les sorties utilisent le PWM 12 bits à **48,828 kHz**, avec horloge système 200 MHz comme le diagnostic v24. Le RP2040 est donc surcadencé par rapport à sa fréquence nominale. La conversion conserve la pente inversée et les coefficients empiriques du test. Les sorties logiques à 0 V utilisent le rapport cyclique calibré : un code PWM nul correspondrait ici à une tension élevée au jack.
+Les sorties utilisent le PWM 13 bits à **24,414 kHz**, avec horloge système 200 MHz. Le RP2040 est donc surcadencé par rapport à sa fréquence nominale. La conversion conserve la pente inversée et les coefficients empiriques du test. Les sorties logiques à 0 V utilisent le rapport cyclique calibré : un code PWM nul correspondrait ici à une tension élevée au jack.
 
-`CV CALIBRATION` permet de choisir Pitch/Aux, une consigne entière de 0 à 8 V et les deux coefficients de conversion : `Vjack = intercept − (duty / 4095) × span`. Les valeurs initiales sont Pitch 7,787 / 8,464 et Aux 7,780 / 8,528. Pour une consigne 8 V réellement atteignable, l’intercept de la sortie concernée doit être calibré à au moins 8 V. Les valeurs affichées restent des consignes, pas une mesure du jack.
+`CV CALIBRATION` propose cinq consignes : 0, 2, 4, 6 et 8 V. Pour chaque sortie, sélectionner la consigne, mesurer le jack au multimètre puis saisir la valeur affichée par le multimètre. `SAVE 5 POINTS` sauvegarde les mesures et le firmware calcule par interpolation la commande PWM nécessaire entre les cinq points.
 
 Les GPIO GP8/9 et ceux déclarés non connectés sont laissés intacts. Il n’y a pas de sortie Clock dédiée : le jack Gate reste utilisé pour les notes.
 

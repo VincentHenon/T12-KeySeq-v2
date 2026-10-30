@@ -15,6 +15,8 @@ namespace {
 // Logical Key 1..12 follows the visible panel grid from top-left to
 // bottom-right: 1 2 3 4 / 5 6 7 8 / 9 10 11 12.
 constexpr uint8_t electrodes[12] = {10, 6, 5, 0, 9, 7, 4, 2, 11, 8, 3, 1};
+// 13-bit PWM: 200 MHz / 8192 = 24.414 kHz carrier.
+constexpr uint16_t CvPwmTop = (1u << 13) - 1u;
 Edge edges[64]{};
 volatile unsigned head = 0, tail = 0;
 volatile bool overrun = false;
@@ -26,8 +28,7 @@ uint16_t keys = 0;
 uint64_t nextTouch = 0;
 bool touchOk = false, mprConfigured = false;
 uint32_t colors[12]{};
-unsigned rgbNext = 12, rgbSm = 0;
-uint64_t rgbLatch = 0;
+unsigned rgbSm = 0;
 struct Button {
   unsigned pin;
   bool raw = false, stable = false, longSent = false;
@@ -129,22 +130,49 @@ bool mprInit() {
   return wr(0x5E, 0) && thresholds(9, 5) && wr(0x5E, 0x8C);
 }
 } // namespace
+namespace {
+float calibratedCommand(float target, const Calibration &c) {
+  constexpr float commands[CalibrationPoints] = {0, 2, 4, 6, 8};
+  target = std::clamp(target, 0.0f, 8.0f);
+  unsigned segment = CalibrationPoints - 2;
+  if (target <= c.measured[0]) {
+    segment = 0;
+  } else {
+    for (unsigned i = 0; i + 1 < CalibrationPoints; ++i) {
+      if (target <= c.measured[i + 1]) {
+        segment = i;
+        break;
+      }
+    }
+  }
+  const float span = c.measured[segment + 1] - c.measured[segment];
+  if (span < 0.02f) return target;
+  const float correctionA = (c.coarseMv[segment] + c.fineTenthsMv[segment] / 10.0f) / 1000.0f;
+  const float correctionB = (c.coarseMv[segment + 1] + c.fineTenthsMv[segment + 1] / 10.0f) / 1000.0f;
+  const float correction = correctionA +
+      (correctionB - correctionA) * (target - c.measured[segment]) / span;
+  // Permit a negative internal command to correct a positive jack offset at
+  // the 0 V point of the analog output stage.
+  return std::clamp(commands[segment] + correction +
+                        (target - c.measured[segment]) * 2.0f / span,
+                    -2.0f, 8.0f);
+}
+} // namespace
 uint16_t duty(float v, const Calibration &c) {
-  return uint16_t(
-      std::lround(std::clamp((c.intercept - std::clamp(v, 0.0f, 8.0f)) / c.span,
-                             0.0f, 1.0f) *
-                  4095));
+  const float command = calibratedCommand(v, c);
+  return uint16_t(std::lround(std::clamp((c.intercept - command) / c.span,
+                             0.0f, 1.0f) * CvPwmTop));
 }
 bool clockHigh() { return gpio_get(pin::Clock); }
 bool resetHigh() { return gpio_get(pin::Reset); }
 void init(const Settings &s) {
   gpio_init(pin::Gate);
-  gpio_put(pin::Gate, 0);
+  // The T12 gate output stage inverts the MCU signal.
+  gpio_put(pin::Gate, 1); // closed at startup
   gpio_set_dir(pin::Gate, GPIO_OUT);
   auto config = pwm_get_default_config();
-  pwm_config_set_wrap(&config, 4095);
-  // 48.828 kHz independently of system clock (125 MHz needs divider 0.625,
-  // therefore main selects the previously tested 200 MHz clock first).
+  pwm_config_set_wrap(&config, CvPwmTop);
+  // 24.414 kHz at the tested 200 MHz system clock.
   pwm_config_set_clkdiv(&config, float(clock_get_hz(clk_sys)) / 200000000.0f);
   auto slice = pwm_gpio_to_slice_num(pin::Pitch);
   pwm_init(slice, &config, false);
@@ -173,6 +201,8 @@ void init(const Settings &s) {
   rgbSm = pio_claim_unused_sm(pio0, true);
   auto pc = rgb_program_get_default_config(offset);
   sm_config_set_sideset_pins(&pc, pin::Rgb);
+  // The diagnostic firmware confirmed a 24-bit GRB stream at 800 kHz.
+  // Keep the pull threshold aligned with the three-byte pixel protocol.
   sm_config_set_out_shift(&pc, false, true, 24);
   sm_config_set_fifo_join(&pc, PIO_FIFO_JOIN_TX);
   sm_config_set_clkdiv(&pc, float(clock_get_hz(clk_sys)) / 8000000.0f);
@@ -180,10 +210,11 @@ void init(const Settings &s) {
   pio_sm_set_consecutive_pindirs(pio0, rgbSm, pin::Rgb, 1, true);
   pio_sm_init(pio0, rgbSm, offset, &pc);
   pio_sm_set_enabled(pio0, rgbSm, true);
-  // The T12 Clock input is active-low after its conditioning stage. Use the
-  // falling edge, matching the Pamela trigger convention. Reset is also
-  // active-low and uses a falling edge.
-  gpio_set_irq_enabled_with_callback(pin::Clock, GPIO_IRQ_EDGE_FALL, true, irq);
+  // Start the sequence on the first rising edge seen by the MCU.  The
+  // conditioned clock input is exposed as a normal digital edge here; using
+  // only the rising edge prevents the first pulse from being lost while the
+  // transport is arming.
+  gpio_set_irq_enabled_with_callback(pin::Clock, GPIO_IRQ_EDGE_RISE, true, irq);
   gpio_set_irq_enabled(pin::Reset, GPIO_IRQ_EDGE_FALL, true);
   for (unsigned p : {pin::EncoderA, pin::EncoderB})
     gpio_set_irq_enabled(p, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
@@ -215,6 +246,19 @@ Input poll(uint64_t now) {
       for (unsigned k = 0; k < 12; ++k)
         if (raw & (1u << electrodes[k]))
           mapped |= 1u << k;
+      for (unsigned k = 0; k < 12; ++k) {
+        if (!(mapped & (1u << k))) continue;
+        const uint8_t electrode = electrodes[k];
+        uint8_t filteredBytes[2]{}, baselineByte = 0;
+        if (rd(uint8_t(0x04 + electrode * 2), filteredBytes, 2) &&
+            rd(uint8_t(0x1E + electrode), &baselineByte, 1)) {
+          const uint16_t filtered = uint16_t(filteredBytes[0]) |
+                                    (uint16_t(filteredBytes[1] & 0x03) << 8);
+          const uint16_t baseline = uint16_t(baselineByte) << 2;
+          // Filtered data decreases as finger capacitance increases.
+          in.touchCap[k] = baseline > filtered ? baseline - filtered : 0;
+        }
+      }
       in.pressed = mapped & ~keys;
       keys = mapped;
     } else {
@@ -253,20 +297,29 @@ void clearEdges() {
 void write(const Output &o, const Settings &s) {
   pwm_set_both_levels(pwm_gpio_to_slice_num(pin::Pitch), duty(o.pitch, s.pitch),
                       duty(o.aux, s.auxiliary));
-  gpio_put(pin::Gate, o.gate);
+  gpio_put(pin::Gate, o.gate ? 0 : 1);
 }
 void leds(uint16_t held, int selected, int playing, uint8_t brightness,
-          bool recording) {
-  if (rgbNext < 12 || time_us_64() < rgbLatch)
-    return;
+          bool recording, const uint16_t *touchCap, bool orangeSelected) {
   for (int k = 0; k < 12; ++k) {
-    unsigned r = 0, g = 0, b = 4;
-    if (k == selected) {
-      r = 12;
-      g = 12;
-      b = 32;
+    // Unused pixels must be completely dark.  A non-zero blue floor leaves
+    // the last playhead visibly latched when transport stops.
+    unsigned r = 0, g = 0, b = 0;
+    if (k == selected && playing < 0) {
+      if (orangeSelected) {
+        r = 255;
+        g = 72;
+        b = 0;
+      } else {
+        r = 12;
+        g = 12;
+        b = 32;
+      }
     }
-    if (k == playing) {
+    // A directly touched pad has priority over the sequence playhead.  This
+    // prevents a currently sounding sequence key from appearing as a second
+    // blinking address when the performer touches another pad.
+    if (k == playing && held == 0) {
       // Played note: violet. Recording remains warm pink/red.
       r = recording ? 220 : 150;
       g = recording ? 0 : 8;
@@ -277,25 +330,33 @@ void leds(uint16_t held, int selected, int playing, uint8_t brightness,
       r = 255;
       g = 20;
       b = 160;
+      // MPR121 filtered capacitance controls the intensity of the touched
+      // pad. Keep a visible floor so a light touch is still identifiable.
+      if (touchCap) {
+        const unsigned level = 32u +
+            (std::min<unsigned>(touchCap[k], 1023u) * 223u) / 1023u;
+        r = r * level / 255u;
+        g = g * level / 255u;
+        b = b * level / 255u;
+      }
     }
     r = r * brightness / 255;
     g = g * brightness / 255;
     b = b * brightness / 255;
-    // The RGB chain starts at the bottom-left and its three physical rows run
-    // left-to-right. Reverse the row order only, so LED k occupies the same
-    // panel cell as logical Key k.
+    // Physical RGB chain mapping confirmed by the diagnostic firmware.
     unsigned packet = 8 - 4 * unsigned(k / 4) + unsigned(k % 4);
     colors[packet] = ((g << 16) | (r << 8) | b) << 8;
   }
-  rgbNext = 0;
+  // Use the exact blocking 12-pixel transfer validated by the standalone
+  // RGB diagnostic. Keeping the framebuffer immutable until all 12 packets
+  // have entered the PIO prevents partial-frame updates and ghost pixels.
+  pio_sm_clear_fifos(pio0, rgbSm);
+  pio_sm_restart(pio0, rgbSm);
+  for (uint32_t color : colors)
+    pio_sm_put_blocking(pio0, rgbSm, color);
+  // Allow the remaining FIFO words to drain and the SK6812 reset interval
+  // to latch the complete frame before another frame can begin.
+  sleep_us(800);
 }
-void serviceLeds() {
-  while (rgbNext < 12 && !pio_sm_is_tx_fifo_full(pio0, rgbSm))
-    pio_sm_put(pio0, rgbSm, colors[rgbNext++]);
-  // FIFO can still contain 8 words plus one active word (270 us), then reset.
-  if (rgbNext == 12) {
-    rgbNext = 13;
-    rgbLatch = time_us_64() + 600;
-  }
-}
+void serviceLeds() {}
 } // namespace t12::hw

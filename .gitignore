@@ -1,0 +1,9 @@
+.DS_Store
+.arduino-cache/
+build/
+dist/
+t12-backup-web/node_modules/
+t12-backup-web/dist/
+*.dSYM/
+*.pyc
+__pycache__/

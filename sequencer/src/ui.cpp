@@ -10,8 +10,10 @@ unsigned wrap(int n, unsigned count) {
   return unsigned((n % int(count) + int(count)) % int(count));
 }
 const char *clockNames[] = {"AUTO", "INTERNAL", "EXTERNAL"};
-const char *auxNames[] = {"OFF", "PITCH COPY", "VIBRATO", "POSITION"};
+const char *auxNames[] = {"OFF", "PITCH COPY", "VIBRATO", "POSITION", "CAP SENSE"};
 const char *curveNames[] = {"SMOOTH", "LINEAR", "EXPO"};
+const char *seqDirNames[] = {"FORWARD", "BACKWARD", "RANDOM"};
+const char *arpDirNames[] = {"UP", "DOWN", "UP&DOWN"};
 const char *pitches[] = {"C",  "C#", "D",  "D#", "E",  "F",
                          "F#", "G",  "G#", "A",  "A#", "B"};
 constexpr char nameChars[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
@@ -21,6 +23,12 @@ void Ui::fault(const char *msg, uint64_t now) {
   messageUntil_ = now + 2500000;
 }
 void Ui::enter(Page p, unsigned row) {
+  if (p == Page::Keys || p == Page::Steps || p == Page::Parameters || p == Page::Calibration) {
+    engine_.stop();
+    engine_.setClockIgnored(true);
+  } else if (page_ == Page::Keys || page_ == Page::Steps || page_ == Page::Parameters || page_ == Page::Calibration) {
+    engine_.setClockIgnored(false);
+  }
   page_ = p;
   row_ = row;
   editing_ = false;
@@ -30,13 +38,13 @@ unsigned Ui::rows() const {
   case Page::Menu:
     return 10;
   case Page::Parameters:
-    return 8;
+    return p_.steps[std::min(step_, Steps - 1)].variant ? 10 : 7;
   case Page::Scale:
     return 5;
   case Page::Clock:
     return 7;
   case Page::Settings:
-    return 9;
+    return 10;
   case Page::Storage:
     return Slots + 1;
   case Page::Slot:
@@ -81,6 +89,20 @@ void Ui::autoSaveSettings(uint64_t now) {
     return;
   saveSettings(now);
 }
+void Ui::autoSaveProject(uint64_t now) {
+  if (engine_.running() || !dirty_)
+    return;
+  suspend(now);
+  bool ok = storage::saveProject(slot_, p_);
+  resume(now);
+  if (ok) {
+    dirty_ = false;
+    fault("SEQUENCE SAVED", now);
+  } else {
+    projectSaveDue_ = now + 10000000;
+    fault("SEQUENCE SAVE FAIL", now);
+  }
+}
 void Ui::settingsChanged(uint64_t now) {
   settingsDirty_ = true;
   // Coalesce a run of encoder ticks into one flash write.  The flash keeps two
@@ -102,13 +124,30 @@ void Ui::endRecord(uint64_t now) {
   enter(Page::Play);
   engine_.stop();
   engine_.reset(now);
+  // Commit a completed recording immediately.  The recorder stops the
+  // engine here, so this flash write cannot interfere with clock/gate timing.
+  if (p_.length && storage::saveProject(slot_, p_))
+    dirty_ = false;
   fault(p_.length ? "SEQUENCE RECORDED" : "EMPTY SEQUENCE", now);
 }
 void Ui::input(const hw::Input &in, uint64_t now) {
   latest_ = in;
-  if (in.turn)
-    turn(s_.reverseEncoder ? -in.turn : in.turn, now);
+  if (page_ == Page::Keys || page_ == Page::Steps)
+    engine_.stop();
+  if (in.turn) {
+    int delta = s_.reverseEncoder ? -in.turn : in.turn;
+    // Calibration values use 0.001 steps. Hold Octave+ while turning to
+    // accelerate the adjustment instead of requiring hundreds of detents.
+    if (page_ == Page::Calibration && in.plusHeld)
+      delta *= 10;
+    turn(delta, now);
+  }
   if (in.longClick) {
+    if (page_ == Page::Keys) {
+      enter(Page::Play);
+      engine_.stop();
+      return;
+    }
     if (page_ == Page::Record) {
       endRecord(now);
       return;
@@ -118,6 +157,10 @@ void Ui::input(const hw::Input &in, uint64_t now) {
       engine_.stop();
       return;
     }
+    if (page_ == Page::CalibrationResult) {
+      enter(Page::Calibration, 2);
+      return;
+    }
     if (page_ == Page::Name) {
       enter(Page::Slot);
       return;
@@ -125,10 +168,24 @@ void Ui::input(const hw::Input &in, uint64_t now) {
     menu();
   } else if (in.click)
     click(now);
-  if (in.minus)
+  if (in.minus) {
     octave(-1, now);
-  if (in.plus)
+    nextMinusRepeat_ = now + 300000;
+  }
+  if (in.plus) {
     octave(1, now);
+    nextPlusRepeat_ = now + 300000;
+  }
+  if (in.minusHeld && now >= nextMinusRepeat_) {
+    octave(-1, now);
+    nextMinusRepeat_ = now + 90000;
+  }
+  if (in.plusHeld && now >= nextPlusRepeat_) {
+    octave(1, now);
+    nextPlusRepeat_ = now + 90000;
+  }
+  if (!in.minusHeld) nextMinusRepeat_ = now + 150000;
+  if (!in.plusHeld) nextPlusRepeat_ = now + 150000;
   for (unsigned k = 0; k < Keys; ++k)
     if (in.pressed & (1u << k)) {
       if (page_ == Page::Keys) {
@@ -154,18 +211,34 @@ void Ui::input(const hw::Input &in, uint64_t now) {
         key_ = k;
         dirty_ = true;
         engine_.preview(k, now, &p_.steps[step_]);
-      } else if (page_ == Page::Play) {
+      } else if (page_ == Page::Play && !engine_.running()) {
         key_ = k;
         engine_.liveKey(int(k));
-        if (!engine_.running())
-          engine_.preview(k, now);
+        // Manual keys must retrigger immediately even while the external
+        // clock is running; liveKey remains active for subsequent clocked
+        // steps, but must not delay the audible gate response.
+        engine_.preview(k, now);
       }
     }
   if (page_ == Page::Play) {
-    if (!in.keys)
+    uint16_t cap = 0;
+    unsigned capKey = 0;
+    for (unsigned k = 0; k < Keys; ++k)
+      if (in.keys & (1u << k)) { cap = in.touchCap[k]; capKey = k; break; }
+    engine_.setTouchCapacitance(cap, capKey);
+    if (engine_.running()) {
+      // During playback, held pads override the CV only when the next step
+      // is emitted. They never call preview() at touch time.
+      engine_.liveKeys(in.keys);
+    } else if (!in.keys) {
       engine_.liveKey(-1);
-  } else
+    }
+  } else {
     engine_.liveKey(-1);
+    engine_.liveKeys(0);
+  }
+  if (dirty_ && !engine_.running())
+    projectSaveDue_ = now + 1500000;
 }
 void Ui::turn(int delta, uint64_t now) {
   int sign = delta > 0 ? 1 : -1;
@@ -174,13 +247,20 @@ void Ui::turn(int delta, uint64_t now) {
       changeValue(sign, now);
       continue;
     }
+    if (page_ == Page::Calibration) {
+      row_ = row_ == 2 ? 3 : (row_ == 3 ? 0 : 2);
+      continue;
+    }
     if (rows()) {
       row_ = wrap(int(row_) + sign, rows());
       continue;
     }
     switch (page_) {
     case Page::Play:
-      step_ = p_.length ? wrap(int(step_) + sign, p_.length) : 0;
+      if (engine_.running())
+        playParam_ = wrap(int(playParam_) + sign, 7);
+      else
+        step_ = p_.length ? wrap(int(step_) + sign, p_.length) : 0;
       break;
     case Page::Keys:
       p_.notes[key_] = uint8_t(moveNote(p_.notes[key_], sign, p_, s_));
@@ -211,22 +291,17 @@ void Ui::turn(int delta, uint64_t now) {
 }
 void Ui::changeValue(int d, uint64_t now) {
   switch (page_) {
-  case Page::Parameters:
-    if (row_ == 0)
-      p_.steps[step_].time =
-          int8_t(std::clamp(int(p_.steps[step_].time) + d, -1, 8));
-    if (row_ == 2)
-      p_.steps[step_].ratchet =
-          uint8_t(std::clamp(int(p_.steps[step_].ratchet) + d, 1, 8));
-    if (row_ == 5)
-      p_.steps[step_].shift =
-          int8_t(std::clamp(int(p_.steps[step_].shift) + d, -7, 7));
-    if (row_ == 6) {
-      p_.length = uint8_t(std::clamp(int(p_.length) + d, 1, int(Steps)));
-      step_ = std::min(step_, unsigned(p_.length - 1));
-    }
+  case Page::Parameters: {
+    auto &st = p_.steps[step_];
+    if (row_ == 0) st.gate = Step::GateType(wrap(int(st.gate) + d, 5));
+    if (row_ == 1) st.length = uint8_t(std::clamp(int(st.length) + d, 1, 8));
+    if (row_ == 2) { static const uint8_t values[] = {1,2,3,4,6,8}; int i=0; while (i<5 && values[i]!=st.ratchet) ++i; st.ratchet = values[std::clamp(i+d,0,5)]; }
+    if (row_ == 6 && st.variant) st.variantDegree = int8_t(std::clamp(int(st.variantDegree) + d, -24, 24));
+    if (row_ == 7 && st.variant) st.variantMin = int8_t(std::clamp(int(st.variantMin) + d, -24, 0));
+    if (row_ == 8 && st.variant) st.variantMax = int8_t(std::clamp(int(st.variantMax) + d, 0, 24));
     dirty_ = true;
     break;
+  }
   case Page::Scale:
     if (row_ == 0)
       p_.scale = uint8_t(wrap(int(p_.scale) + d, scaleCount()));
@@ -255,7 +330,9 @@ void Ui::changeValue(int d, uint64_t now) {
     if (row_ == 3)
       s_.brightness = uint8_t(std::clamp(int(s_.brightness) + d * 4, 0, 255));
     if (row_ == 4)
-      s_.aux = AuxMode(wrap(int(s_.aux) + d, 4));
+      s_.aux = AuxMode(wrap(int(s_.aux) + d, 5));
+    if (row_ == 7)
+      s_.gateLength = uint8_t(std::clamp(int(s_.gateLength) + d, 10, 90));
     settingsChanged(now);
     break;
   case Page::Calibration: {
@@ -263,11 +340,11 @@ void Ui::changeValue(int d, uint64_t now) {
     if (row_ == 0)
       calChannel_ = 1 - calChannel_;
     if (row_ == 1)
-      calVolt_ = unsigned(std::clamp(int(calVolt_) + d, 0, 8));
+      calPoint_ = unsigned(std::clamp(int(calPoint_) + d, 0, int(CalibrationPoints - 1)));
     if (row_ == 2)
-      c.intercept = std::clamp(c.intercept + d * 0.001f, 6.0f, 10.0f);
+      c.coarseMv[calPoint_] = int16_t(std::clamp(int(c.coarseMv[calPoint_]) + d * 10, -1000, 1000));
     if (row_ == 3)
-      c.span = std::clamp(c.span + d * 0.001f, 6.0f, 12.0f);
+      c.fineTenthsMv[calPoint_] = int16_t(std::clamp(int(c.fineTenthsMv[calPoint_]) + d, -100, 100));
     settingsChanged(now);
     break;
   }
@@ -278,10 +355,16 @@ void Ui::changeValue(int d, uint64_t now) {
 void Ui::click(uint64_t now) {
   if (editing_) {
     editing_ = false;
+    if (page_ == Page::Calibration) {
+      saveSettings(now);
+      fault("CALIBRATION SAVED", now);
+    }
     return;
   }
   switch (page_) {
   case Page::Play:
+    if (engine_.running()) engine_.stop(); else engine_.start(now);
+    break;
   case Page::Keys:
     menu();
     break;
@@ -341,31 +424,16 @@ void Ui::click(uint64_t now) {
     else
       menu();
     break;
-  case Page::Parameters:
-    switch (row_) {
-    case 0:
-    case 2:
-    case 5:
-    case 6:
-      editing_ = true;
-      break;
-    case 1:
-      p_.steps[step_].retrigger ^= 1;
-      dirty_ = true;
-      break;
-    case 3:
-      p_.steps[step_].glide ^= 1;
-      dirty_ = true;
-      break;
-    case 4:
-      p_.steps[step_].vibrato ^= 1;
-      dirty_ = true;
-      break;
-    case 7:
-      enter(Page::Steps);
-      break;
-    }
+  case Page::Parameters: {
+    auto &st = p_.steps[step_];
+    const unsigned ret = st.variant ? 9 : 6;
+    if (row_ == 0 || row_ == 1 || row_ == 2 || (row_ >= 6 && row_ <= 8 && st.variant)) editing_ = true;
+    else if (row_ == 3) { st.glide ^= 1; dirty_ = true; }
+    else if (row_ == 4) { st.vibrato ^= 1; dirty_ = true; }
+    else if (row_ == 5) { st.variant ^= 1; dirty_ = true; }
+    else if (row_ == ret) enter(Page::Steps);
     break;
+  }
   case Page::Scale:
     if (row_ < 2)
       editing_ = true;
@@ -402,20 +470,28 @@ void Ui::click(uint64_t now) {
       s_.reverseEncoder ^= 1, settingsChanged(now);
     else if (row_ == 6) {
       engine_.stop();
-      calVolt_ = 0;
-      enter(Page::Calibration);
+      calPoint_ = 0;
+      enter(Page::Calibration, 2);
     } else if (row_ == 7)
+      editing_ = true;
+    else if (row_ == 8)
       saveSettings(now);
     else
       menu();
     break;
   case Page::Calibration:
+    if (row_ == 0) {
+      calChannel_ = 1 - calChannel_;
+      fault(calChannel_ ? "AUXILIARY OUTPUT" : "PITCH OUTPUT", now);
+      break;
+    }
     if (row_ < 4)
       editing_ = true;
     else {
-      saveSettings(now);
-      enter(Page::Settings, 6);
+      enter(Page::CalibrationResult);
     }
+    break;
+  case Page::CalibrationResult:
     break;
   case Page::Storage:
     if (row_ == Slots)
@@ -467,9 +543,29 @@ void Ui::click(uint64_t now) {
   }
 }
 void Ui::octave(int d, uint64_t now) {
+  if (page_ == Page::CalibrationResult) {
+    calPoint_ = unsigned(std::clamp(int(calPoint_) + d, 0, 8));
+    return;
+  }
+  if (page_ == Page::Calibration) {
+    calPoint_ = unsigned(std::clamp(int(calPoint_) + d, 0, int(CalibrationPoints - 1)));
+    return;
+  }
   if (page_ == Page::Play) {
-    p_.transpose = int8_t(std::clamp(int(p_.transpose) + d, -7, 7));
-    dirty_ = true;
+    if (engine_.running()) {
+      switch (playParam_) {
+      case 1: s_.sequenceDirection = uint8_t(wrap(int(s_.sequenceDirection) + d, 3)); settingsChanged(now); break;
+      case 2: s_.arpDirection = uint8_t(wrap(int(s_.arpDirection) + d, 3)); settingsChanged(now); break;
+      case 3: s_.gateLength = uint8_t(std::clamp(int(s_.gateLength) + d, 10, 90)); settingsChanged(now); break;
+      case 4: s_.division = uint8_t(d > 0 ? std::min(8, int(s_.division) * 2) : std::max(1, int(s_.division) / 2)); engine_.clockChanged(now); settingsChanged(now); break;
+      case 5: if (p_.length) { p_.loopLength = uint8_t(std::clamp(int(p_.loopLength ? p_.loopLength : p_.length) + d, 1, int(p_.length))); p_.loopOffset = uint8_t(std::min<unsigned>(p_.loopOffset, p_.length - p_.loopLength)); } dirty_ = true; break;
+      case 6: if (p_.length) { const unsigned len = p_.loopLength ? p_.loopLength : p_.length; p_.loopOffset = uint8_t(std::clamp(int(p_.loopOffset) + d, 0, int(p_.length - len))); } dirty_ = true; break;
+      default: p_.transpose = int8_t(std::clamp(int(p_.transpose) + d, -7, 7)); dirty_ = true; break;
+      }
+    } else {
+      p_.transpose = int8_t(std::clamp(int(p_.transpose) + d, -7, 7));
+      dirty_ = true;
+    }
     return;
   }
   if (page_ == Page::Keys) {
@@ -585,30 +681,20 @@ void Ui::item(unsigned index, char *out, size_t n) const {
   case Page::ConfirmRecord:
     std::snprintf(out, n, "%s", index == 0 ? "ERASE AND RECORD" : "CANCEL");
     break;
-  case Page::Parameters:
-    if (index == 0) {
-      if (st.time == -1)
-        std::snprintf(out, n, "TIME: HALF");
-      else if (st.time == 0)
-        std::snprintf(out, n, "TIME: REST");
-      else
-        std::snprintf(out, n, "TIME: %d CLOCKS", int(st.time));
-    }
-    if (index == 1)
-      std::snprintf(out, n, "RETRIGGER: %s", st.retrigger ? "ON" : "OFF");
-    if (index == 2)
-      std::snprintf(out, n, "RATCHET: %u", st.ratchet);
-    if (index == 3)
-      std::snprintf(out, n, "GLIDE: %s", st.glide ? "ON" : "OFF");
-    if (index == 4)
-      std::snprintf(out, n, "VIBRATO: %s", st.vibrato ? "ON" : "OFF");
-    if (index == 5)
-      std::snprintf(out, n, "STEP SHIFT: %+d DEG", int(st.shift));
-    if (index == 6)
-      std::snprintf(out, n, "LENGTH: %u", p_.length);
-    if (index == 7)
-      std::snprintf(out, n, "RETURN");
+  case Page::Parameters: {
+    const auto gateName = [](Step::GateType g) { static const char *n[] = {"SINGLE","MULTI","HOLD","REST","SKIP"}; return n[unsigned(g) % 5]; };
+    if (index == 0) std::snprintf(out, n, "GATE: %s", gateName(st.gate));
+    if (index == 1) std::snprintf(out, n, "STEP LENGTH: X%u", st.length);
+    if (index == 2) std::snprintf(out, n, "RATCHET: %s", st.ratchet == 1 ? "OFF" : (st.ratchet == 2 ? "2" : st.ratchet == 3 ? "3" : st.ratchet == 4 ? "4" : st.ratchet == 6 ? "6" : "8"));
+    if (index == 3) std::snprintf(out, n, "SLIDE: %s", st.glide ? "ON" : "OFF");
+    if (index == 4) std::snprintf(out, n, "VIBRATO: %s", st.vibrato ? "ON" : "OFF");
+    if (index == 5) std::snprintf(out, n, "VARIANT: %s", st.variant ? "ON" : "OFF");
+    if (index == 6 && st.variant) std::snprintf(out, n, "VARIANT DEG: %+d", int(st.variantDegree));
+    if (index == 7 && st.variant) std::snprintf(out, n, "VARIANT MIN: %+d", int(st.variantMin));
+    if (index == 8 && st.variant) std::snprintf(out, n, "VARIANT MAX: %+d", int(st.variantMax));
+    if (index == (st.variant ? 9 : 6)) std::snprintf(out, n, "RETURN");
     break;
+  }
   case Page::Scale:
     if (index == 0)
       std::snprintf(out, n, "%s", scaleName(p_.scale));
@@ -658,8 +744,10 @@ void Ui::item(unsigned index, char *out, size_t n) const {
     if (index == 6)
       std::snprintf(out, n, "CV CALIBRATION");
     if (index == 7)
-      std::snprintf(out, n, "SAVE SETTINGS");
+      std::snprintf(out, n, "GATE LENGTH: %u%%", s_.gateLength);
     if (index == 8)
+      std::snprintf(out, n, "SAVE SETTINGS");
+    if (index == 9)
       std::snprintf(out, n, "RETURN");
     break;
   case Page::Storage: {
@@ -682,13 +770,14 @@ void Ui::item(unsigned index, char *out, size_t n) const {
     if (index == 0)
       std::snprintf(out, n, "OUT: %s", calChannel_ ? "AUX" : "PITCH");
     if (index == 1)
-      std::snprintf(out, n, "TARGET: %u V", calVolt_);
+      std::snprintf(out, n, "TARGET: %u V", calPoint_ * 2);
     if (index == 2)
-      std::snprintf(out, n, "INTERCEPT: %.3f", double(c.intercept));
+      std::snprintf(out, n, "COARSE: %+d MV", int(c.coarseMv[calPoint_]));
     if (index == 3)
-      std::snprintf(out, n, "SPAN: %.3f", double(c.span));
+      std::snprintf(out, n, "FINE: %+d.%d MV", int(c.fineTenthsMv[calPoint_] / 10),
+                    std::abs(int(c.fineTenthsMv[calPoint_] % 10)));
     if (index == 4)
-      std::snprintf(out, n, "SAVE AND RETURN");
+      std::snprintf(out, n, "SAVE CALIBRATION");
     break;
   }
   default:
@@ -740,7 +829,14 @@ void Ui::draw(Canvas &c, uint64_t now) const {
       c.text(0, y, i == row_ ? (editing_ ? "=" : ">") : " ");
       c.text(8, y, line);
     }
-    c.text(0, 56, editing_ ? "TURN VALUE  CLICK OK" : "- BACK  CLICK SELECT");
+    c.text(0, 56, editing_ ? "TURN VALUE  CLICK SAVE" : "- BACK  CLICK SELECT");
+  } else if (page_ == Page::CalibrationResult) {
+    c.text(0, 0, "CV CALIBRATION RESULT");
+    std::snprintf(line, sizeof line, "OUTPUT: %u V", calPoint_);
+    c.text(0, 14, line);
+    c.text(0, 30, "CORRECTED OUTPUT");
+    c.text(0, 44, "- / + SELECT 0-8 V");
+    c.text(0, 56, "HOLD ENCODER: CALIBRATE");
   } else if (page_ == Page::Custom) {
     std::snprintf(line, sizeof line, "USER %u  NOTE %s", custom_ + 1,
                   pitches[piano_]);
@@ -770,18 +866,28 @@ void Ui::draw(Canvas &c, uint64_t now) const {
     c.text(0, 40, "CLICK NEXT LETTER");
     c.text(0, 56, "- CANCEL      + SAVE");
   } else if (page_ == Page::Keys) {
-    c.text(0, 0, "EDIT KEYS");
-    noteName(float(keyNote(key_, p_, s_, false)), note, sizeof note);
-    std::snprintf(line, sizeof line, "KEY %02u  %s", key_ + 1, note);
-    c.text(0, 12, line);
-    for (unsigned k = 0; k < Keys; ++k) {
-      int x = int(k % 4) * 32, y = 25 + int(k / 4) * 9;
-      std::snprintf(line, sizeof line, "%02u", k + 1);
-      c.text(x + 7, y, line);
-      if (k == key_)
-        c.box(x, y - 1, 29, 9);
-    }
-    c.text(0, 56, "TOUCH KEY  TURN NOTE");
+    const int current = keyNote(key_, p_, s_, false);
+    char previous[8]{}, next[8]{};
+    noteName(float(current), note, sizeof note);
+    noteName(float(moveNote(current, -1, p_, s_)), previous,
+             sizeof previous);
+    noteName(float(moveNote(current, 1, p_, s_)), next, sizeof next);
+
+    std::snprintf(line, sizeof line, "KEY %02u", key_ + 1);
+    c.text(0, 0, line);
+    c.text(94, 0, "EDIT");
+
+    // Carousel: the current selectable note is dominant, while the notes
+    // reached by the previous/next encoder detent flank it on both sides.
+    const int currentWidth = int(std::strlen(note)) * 18;
+    const int nextWidth = int(std::strlen(next)) * 7;
+    c.textScaled(2, 27, previous, 1, true);
+    c.box(27, 30, 7, 1, true);
+    c.textScaled((128 - currentWidth) / 2, 17, note, 3);
+    c.box(94, 30, 7, 1, true);
+    c.textScaled(126 - nextWidth, 27, next, 1, true);
+
+    c.text(0, 56, "HOLD CLICK: EXIT");
   } else {
     c.text(0, 0,
            page_ == Page::Record  ? "RECORD"
@@ -823,10 +929,25 @@ void Ui::draw(Canvas &c, uint64_t now) const {
       std::snprintf(line, sizeof line, "%s OCT %d %s", note, p_.transpose,
                     engine_.external(now) ? "EXT" : "INT");
       c.text(0, 36, line);
-      std::snprintf(line, sizeof line, "%u BPM %s", s_.bpm,
-                    scaleName(p_.scale));
+      const char *param = playParam_ == 0 ? "OCTAVE"
+                         : playParam_ == 1 ? seqDirNames[s_.sequenceDirection]
+                         : playParam_ == 2 ? arpDirNames[s_.arpDirection]
+                         : playParam_ == 3 ? "GATE"
+                         : playParam_ == 4 ? "DIVISION"
+                         : playParam_ == 5 ? "LOOP LENGTH"
+                                           : "LOOP OFFSET";
+      if (playParam_ == 3)
+        std::snprintf(line, sizeof line, "> %s %u%%", param, s_.gateLength);
+      else if (playParam_ == 4)
+        std::snprintf(line, sizeof line, "> %s x%u", param, s_.division);
+      else if (playParam_ == 5)
+        std::snprintf(line, sizeof line, "> %s %u", param, p_.loopLength ? p_.loopLength : p_.length);
+      else if (playParam_ == 6)
+        std::snprintf(line, sizeof line, "> %s %u", param, p_.loopOffset);
+      else
+        std::snprintf(line, sizeof line, "> %s", param);
       c.text(0, 46, line);
-      c.text(0, 56, "CLICK MENU  HOLD MENU");
+      c.text(0, 56, "ENC SELECT  +/- CHANGE");
     }
   }
   if (!latest_.touchOk) {
