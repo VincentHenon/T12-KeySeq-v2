@@ -83,7 +83,7 @@ void Ui::enter(Page p, unsigned row) {
 unsigned Ui::rows() const {
   switch (page_) {
   case Page::Menu:
-    return 6;
+    return 7;
   case Page::Parameters:
     return p_.steps[std::min(step_, Steps - 1)].variant
                ? 7 : 4;
@@ -92,7 +92,7 @@ unsigned Ui::rows() const {
   case Page::Clock:
     return 7;
   case Page::Settings:
-    return 12;
+    return 11;
   case Page::Storage:
     return Slots + 1;
   case Page::Slot:
@@ -411,17 +411,17 @@ void Ui::changeValue(int d, uint64_t now) {
     settingsChanged(now);
     break;
   case Page::Settings:
-    if (row_ == 3)
+    if (row_ == 2)
       s_.vibratoHz = std::clamp(s_.vibratoHz + d * 0.1f, 0.1f, 20.0f);
-    if (row_ == 4)
+    if (row_ == 3)
       s_.vibratoCents = std::clamp(s_.vibratoCents + d, 0.0f, 200.0f);
-    if (row_ == 5)
+    if (row_ == 4)
       s_.glideShape = GlideShape(wrap(int(s_.glideShape) + d, 3));
-    if (row_ == 6)
+    if (row_ == 5)
       s_.brightness = uint8_t(std::clamp(int(s_.brightness) + d * 4, 0, 255));
-    if (row_ == 7)
+    if (row_ == 6)
       s_.aux = AuxMode(wrap(int(s_.aux) + d, 5));
-    if (row_ == 9)
+    if (row_ == 8)
       s_.gateLength = uint8_t(std::clamp(int(s_.gateLength) + d, 10, 90));
     settingsChanged(now);
     break;
@@ -483,21 +483,25 @@ void Ui::click(uint64_t now) {
       enter(Page::Play);
       break;
     case 1:
+      return_ = Page::Menu;
+      enter(Page::Scale);
+      break;
+    case 2:
       engine_.stop();
       step_ = std::min(step_, p_.length ? unsigned(p_.length - 1) : 0);
       enter(Page::Steps);
       break;
-    case 2:
+    case 3:
       engine_.stop();
       enter(Page::Keys);
       break;
-    case 3:
+    case 4:
       startRecord(now);
       break;
-    case 4:
+    case 5:
       enter(Page::Storage, slot_);
       break;
-    case 5:
+    case 6:
       enter(Page::Settings);
       break;
     }
@@ -561,22 +565,19 @@ void Ui::click(uint64_t now) {
     break;
   case Page::Settings:
     if (row_ == 0) {
-      return_ = Page::Settings;
-      enter(Page::Scale);
-    } else if (row_ == 1) {
       engine_.stop();
       calPoint_ = 0;
       enter(Page::Calibration, 2);
-    } else if (row_ == 2) {
+    } else if (row_ == 1) {
       return_ = Page::Settings;
       enter(Page::Clock);
-    } else if (row_ >= 3 && row_ <= 7)
+    } else if (row_ >= 2 && row_ <= 6)
       editing_ = true;
-    else if (row_ == 8)
+    else if (row_ == 7)
       s_.reverseEncoder ^= 1, settingsChanged(now);
-    else if (row_ == 9)
+    else if (row_ == 8)
       editing_ = true;
-    else if (row_ == 10)
+    else if (row_ == 9)
       saveSettings(now);
     else
       menu();
@@ -806,8 +807,8 @@ void Ui::item(unsigned index, char *out, size_t n) const {
   const auto &st = p_.steps[std::min(step_, Steps - 1)];
   switch (page_) {
   case Page::Menu: {
-    const char *items[] = {"LIVE", "STEPS", "KEYS", "REC", "SAVE-LOAD",
-                           "SETTINGS"};
+    const char *items[] = {"LIVE", "SCALE", "STEPS", "KEYS", "REC",
+                           "SAVE-LOAD", "SETTINGS"};
     std::snprintf(out, n, "%s", items[index]);
     break;
   }
@@ -863,29 +864,27 @@ void Ui::item(unsigned index, char *out, size_t n) const {
     break;
   case Page::Settings:
     if (index == 0)
-      std::snprintf(out, n, "SCALES");
-    if (index == 1)
       std::snprintf(out, n, "CV CALIBRATION");
-    if (index == 2)
+    if (index == 1)
       std::snprintf(out, n, "CLOCK");
-    if (index == 3)
+    if (index == 2)
       std::snprintf(out, n, "VIB RATE: %.1f HZ", double(s_.vibratoHz));
-    if (index == 4)
+    if (index == 3)
       std::snprintf(out, n, "VIB DEPTH: %.0f CT", double(s_.vibratoCents));
-    if (index == 5)
+    if (index == 4)
       std::snprintf(out, n, "GLIDE: %s", curveNames[unsigned(s_.glideShape)]);
-    if (index == 6)
+    if (index == 5)
       std::snprintf(out, n, "LED LEVEL: %u", s_.brightness);
-    if (index == 7)
+    if (index == 6)
       std::snprintf(out, n, "AUX: %s", auxNames[unsigned(s_.aux)]);
-    if (index == 8)
+    if (index == 7)
       std::snprintf(out, n, "ENC REVERSE: %s",
                     s_.reverseEncoder ? "ON" : "OFF");
-    if (index == 9)
+    if (index == 8)
       std::snprintf(out, n, "GATE LENGTH: %u%%", s_.gateLength);
-    if (index == 10)
+    if (index == 9)
       std::snprintf(out, n, "SAVE SETTINGS");
-    if (index == 11)
+    if (index == 10)
       std::snprintf(out, n, "RETURN");
     break;
   case Page::Storage: {
@@ -1126,6 +1125,16 @@ void Ui::draw(Canvas &c, uint64_t now) const {
       c.text(0, 36, line);
       c.text(0, 46, "TURN PREVIEW  CLICK: LAST");
       c.text(0, 56, "- EXIT   + CLEAR");
+    }
+    if (page_ == Page::Play) {
+      // Compact one-octave keyboard showing the active scale degrees.
+      const uint16_t mask = scaleMask(p_, s_);
+      for (int n = 0; n < 12; ++n) {
+        const int x = 2 + n * 10;
+        c.box(x, 56, 8, 7, false);
+        if (mask & (1u << ((n + p_.root) % 12)))
+          c.box(x + 3, 58, 3, 3, true);
+      }
     }
   }
   if (page_ == Page::Play && now < liveModalUntil_) {
