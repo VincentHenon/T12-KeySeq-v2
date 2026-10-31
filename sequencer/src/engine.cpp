@@ -102,7 +102,7 @@ void Engine::halfTick(uint64_t now) {
       output_.gate = false;
       gateOff_ = 0;
       vibrato_ = false;
-      // Keep the last key indicator during a rest; only the gate closes.
+      sounding_ = -1;
       ratchetsRemaining_ = 0;
       return;
     }
