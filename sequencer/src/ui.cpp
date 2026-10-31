@@ -198,8 +198,9 @@ void Ui::discardRecord(uint64_t now) {
 }
 void Ui::input(const hw::Input &in, uint64_t now) {
   latest_ = in;
-  if (page_ == Page::Keys || page_ == Page::Steps)
-    engine_.stop();
+  // KEYS and STEPS are idle pages: entering them stops the transport, but do
+  // not call stop() on every input poll. That would cancel a preview gate on
+  // the very next MPR121 scan and make it usable only as a short trigger.
   if (in.turn) {
     int delta = s_.reverseEncoder ? -in.turn : in.turn;
     // Calibration values use 0.001 steps. Hold Octave+ while turning to
