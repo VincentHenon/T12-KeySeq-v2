@@ -83,7 +83,7 @@ void Ui::enter(Page p, unsigned row) {
 unsigned Ui::rows() const {
   switch (page_) {
   case Page::Menu:
-    return 6;
+    return 7;
   case Page::Parameters:
     return p_.steps[std::min(step_, Steps - 1)].variant
                ? 7 : 4;
@@ -492,13 +492,16 @@ void Ui::click(uint64_t now) {
       enter(Page::Keys);
       break;
     case 3:
+      startRecord(now);
+      break;
+    case 4:
       return_ = Page::Menu;
       enter(Page::Scale);
       break;
-    case 4:
+    case 5:
       enter(Page::Storage, slot_);
       break;
-    case 5:
+    case 6:
       enter(Page::Settings);
       break;
     }
@@ -929,10 +932,10 @@ void Ui::draw(Canvas &c, uint64_t now) const {
   c.clear();
   char line[40]{}, note[8]{};
   if (page_ == Page::Menu) {
-    static const char *items[] = {"LIVE", "STEPS", "KEYS", "SCALES",
+    static const char *items[] = {"LIVE", "STEPS", "KEYS", "REC", "SCALES",
                                   "SAVE-LOAD", "SETTINGS"};
-    const unsigned previous = row_ == 0 ? 5 : row_ - 1;
-    const unsigned next = row_ == 5 ? 0 : row_ + 1;
+    const unsigned previous = row_ == 0 ? 6 : row_ - 1;
+    const unsigned next = row_ == 6 ? 0 : row_ + 1;
     const int currentWidth = int(std::strlen(items[row_]) * 12);
     const int previousWidth = int(std::strlen(items[previous]) * 6);
     const int nextWidth = int(std::strlen(items[next]) * 6);
