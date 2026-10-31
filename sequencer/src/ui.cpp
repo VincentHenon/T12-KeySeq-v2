@@ -939,7 +939,7 @@ void Ui::draw(Canvas &c, uint64_t now) const {
     c.textScaled((128 - previousWidth) / 2, 5, items[previous], 1, true);
     c.textScaled(std::max(0, (128 - currentWidth) / 2), 24, items[row_], 2);
     c.textScaled((128 - nextWidth) / 2, 49, items[next], 1, true);
-  } else if (rows()) {
+  } else if (rows() && page_ != Page::Scale) {
     const char *title = "MENU";
     switch (page_) {
     case Page::Menu:
