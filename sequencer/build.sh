@@ -8,4 +8,4 @@ if [[ -d "$toolchain_path" ]]; then args+=("-DPICO_TOOLCHAIN_PATH=$toolchain_pat
 cmake "${args[@]}"
 cmake --build "$project_root/build/sequencer-native" --parallel 6
 cp "$project_root/build/sequencer-native/t12_sequencer.uf2" "$project_root/T12_Sequencer_MVP.uf2"
-cp "$project_root/build/sequencer-native/t12_sequencer.uf2" "$project_root/T12_Sequencer_MVP_v0.1.99.uf2"
+cp "$project_root/build/sequencer-native/t12_sequencer.uf2" "$project_root/T12_Sequencer_MVP_v0.1.100.uf2"
